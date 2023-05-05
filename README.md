@@ -1,4 +1,6 @@
-# Utilities for Numbers Official Document
+# Capture SDK
+
+The Capture SDK helps users use Numbers services easily and includes the utilities for [Numbers GitBook](https://docs.numbersprotocol.io/introduction/numbers-protocol).
 
 ## Nit API
 
@@ -45,3 +47,8 @@ $ ./nse-api-search-nft.sh
 # is protected.
 $ ./nse-api-detect-theft.sh
 ```
+
+## Send A Pull Request
+
+1. Supporter creates a branch with the naming `feature-<new-feature-name>` or `fix-<issue-name-or-number>`.
+2. Supporter sends a PR to `main`.
