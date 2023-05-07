@@ -48,6 +48,21 @@ $ ./nse-api-search-nft.sh
 $ ./nse-api-detect-theft.sh
 ```
 
+## Check Capture Account Balance
+
+Capture Account is an essential tool for Capture App users and developers using the Numbers Protocol. When the account is created, two wallets, one for managing Web3 assets and one for signing the Capture photos are automatically generated for the user. This eliminates the need for users to manually create and manage multiple wallets, saving valuable time and resources.
+
+For the details, please refer to [Capture Account and Wallet](https://docs.captureapp.xyz/about-capture/capture-account-and-wallet).
+
+```sh
+# To check Capture Account balance, please see the example below.
+#
+# When calling an API, the costing rule is
+#   * If Capture Credits (points) is sufficient, costs from Credits.
+#   * Else if Asset Wallet balance is sufficient, cost from Asset Wallet.
+$ ././capture-api-show-num-balance.sh
+```
+
 ## Send A Pull Request
 
 1. Supporter creates a branch with the naming `feature-<new-feature-name>` or `fix-<issue-name-or-number>`.
