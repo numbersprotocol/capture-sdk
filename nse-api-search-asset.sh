@@ -9,8 +9,8 @@ generate_post_data() {
 
     cat <<EOF
 {
-   "fileURL": "${assetUrl}",
-   "threshold": 0.12
+  "fileURL": "${assetUrl}",
+  "threshold": 0.12
 }
 EOF
 }
