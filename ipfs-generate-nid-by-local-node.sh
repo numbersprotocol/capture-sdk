@@ -1,6 +1,6 @@
 #!/bin/bash
 
-read -p "Filepath of the asset for generating Nid locally: " filePath
+read -p "Filepath of the asset for generating Nid: " filePath
 if [ "${filePath}" == "" ]; then
     echo "No filepath provided. Exiting..."
     exit 1
