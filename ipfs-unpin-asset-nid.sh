@@ -12,6 +12,6 @@ else
     echo -e "\n\nUnpinning ${nid}...\n"
 fi
 
-curl -X POST "https://eoomqofcyr7y0fl.m.pipedream.net" \
+curl -X POST "https://eo3wcvdjj73vq4x.m.pipedream.net" \
      -H "Authorization: token ${captureToken}" \
      -d "{\"nid\": \"${nid}\"}"
