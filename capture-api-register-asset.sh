@@ -7,7 +7,7 @@ setCaptureToken
 read -p "File URL: " fileURL
 echo -e "\n\nYour asset registration result is: "
 
-curl -X POST "https://dia-backend.numbersprotocol.io/api/v3/assets/" \
+curl -X POST "https://api.numbersprotocol.io/api/v3/assets/" \
   -H "Content-Type: multipart/form-data" \
   -H "Accept: application/json" \
   -H "Authorization: token ${captureToken}" \
