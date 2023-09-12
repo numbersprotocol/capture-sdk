@@ -12,6 +12,13 @@ curl -X POST "https://dia-backend.numbersprotocol.io/api/v3/assets/" \
   -H "Accept: application/json" \
   -H "Authorization: token ${captureToken}" \
   -F "asset_file=@\"${fileURL}\"" \
+  -F "caption=This is a testing sample." \
+  -F 'nit_commit_custom={
+      "parentAssetCid": "<parent-asset-nid>",
+      "usedBy": "https://numbersprotocol.io",
+      "digitalSourceType": "digitalCapture",
+      "myCustomField": "myCustomValue"
+  }' \
   -F "public_access=true" \
   -F 'meta={
      "proof": {
