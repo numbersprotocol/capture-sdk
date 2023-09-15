@@ -6,7 +6,7 @@ read -sp "Password: " capturePassword
 read -sp "X-Api-Key: " captureApiKey
 echo "\n\nYour Capture accout sign up result is: "
 
-curl -X POST "https://dia-backend.numbersprotocol.io/api/v3/auth/users/" \
+curl -X POST "https://api.numbersprotocol.io/api/v3/auth/users/" \
      -H "Content-Type: application/json" \
      -H "Accept: application/json" \
      -H "X-Api-Key: ${captureApiKey}" \
