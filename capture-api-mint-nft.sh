@@ -15,7 +15,7 @@ curl -X POST "https://dia-backend.numbersprotocol.io/api/v3/assets/${assetNid}/m
      -H "x-api-key: ${captureApikey}" \
      -H "Authorization: token ${captureToken}" \
      -d '{
-          "nft_blockchain_name": "thundercore",
+          "nft_blockchain_name": "numbers",
           "no_blocking": true,
           "force_replace": false
          }'
