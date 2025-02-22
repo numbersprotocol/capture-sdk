@@ -4,6 +4,7 @@ read -p "Capture account email: " captureEmail
 read -p "Capture account username: " captureUsername
 read -sp "Password: " capturePassword
 read -sp "X-Api-Key: " captureApiKey
+read -p "Referral code: " captureReferral
 echo "\n\nYour Capture accout sign up result is: "
 
 curl -X POST "https://api.numbersprotocol.io/api/v3/auth/users/" \
@@ -15,5 +16,6 @@ curl -X POST "https://api.numbersprotocol.io/api/v3/auth/users/" \
         \"password\": \"${capturePassword}\",
         \"email\": \"${captureEmail}\",
         \"activation_method\": \"skip\",
-        \"language\": \"en\"
+        \"language\": \"en\",
+        \"referral_code\": \"${captureReferral}\"
     }"
