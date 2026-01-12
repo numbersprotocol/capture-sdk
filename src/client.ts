@@ -8,6 +8,12 @@ import {
   type AssetTree,
   type AssetApiResponse,
   type HistoryApiResponse,
+  type VerifyInput,
+  type VerifyOptions,
+  type VerifyResult,
+  type VerifyApiResponse,
+  type SimilarAsset,
+  type NFTMatch,
 } from './types.js'
 import {
   ValidationError,
@@ -21,6 +27,7 @@ const HISTORY_API_URL =
   'https://e23hi68y55.execute-api.us-east-1.amazonaws.com/default/get-commits-storage-backend-jade-near'
 const MERGE_TREE_API_URL =
   'https://us-central1-numbers-protocol-api.cloudfunctions.net/get-full-asset-tree'
+const VERIFY_ENGINE_API_URL = 'https://eofveg1f59hrbn.m.pipedream.net'
 
 /** Common MIME types by extension */
 const MIME_TYPES: Record<string, string> = {
@@ -420,5 +427,177 @@ export class Capture {
     // The API returns { mergedAssetTree: {...}, assetTrees: [...] }
     // We return the merged tree
     return (data.mergedAssetTree || data) as AssetTree
+  }
+
+  /**
+   * Verifies an asset using the Numbers Verify Engine.
+   * Detects similar assets and cross-chain NFT matches for theft detection.
+   *
+   * @param input - File to verify (path, File, Blob, Buffer, Uint8Array) or URL object
+   * @param options - Verification options
+   * @returns Verification results including similar assets and NFT matches
+   *
+   * @example
+   * ```typescript
+   * // Verify a local file
+   * const result = await capture.verify('./photo.jpg')
+   *
+   * // Verify by URL
+   * const result = await capture.verify({ url: 'https://example.com/image.jpg' })
+   *
+   * // With options
+   * const result = await capture.verify('./photo.jpg', {
+   *   threshold: 0.1,
+   *   excludedAssets: ['bafybei...'],
+   *   excludedContracts: ['0x...']
+   * })
+   *
+   * // Check results
+   * if (result.similarAssets.length > 0) {
+   *   console.log('Similar assets found:', result.similarAssets)
+   * }
+   * if (result.nftMatches.length > 0) {
+   *   console.log('NFT matches found:', result.nftMatches)
+   * }
+   * ```
+   */
+  async verify(input: VerifyInput, options?: VerifyOptions): Promise<VerifyResult> {
+    const headers: Record<string, string> = {
+      Authorization: `token ${this.token}`,
+    }
+
+    let response: Response
+
+    // Check if input is a URL object
+    if (this.isUrlInput(input)) {
+      // URL-based verification
+      headers['Content-Type'] = 'application/json'
+
+      const body: Record<string, unknown> = {
+        fileURL: input.url,
+      }
+
+      if (options?.threshold !== undefined) {
+        body.threshold = options.threshold
+      }
+      if (options?.excludedAssets?.length) {
+        body.excludedAssets = options.excludedAssets
+      }
+      if (options?.excludedContracts?.length) {
+        body.excludedContracts = options.excludedContracts
+      }
+
+      response = await fetch(VERIFY_ENGINE_API_URL, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      })
+    } else {
+      // File-based verification
+      const { data, filename, mimeType } = await normalizeFile(input, { filename: 'file' })
+
+      if (data.length === 0) {
+        throw new ValidationError('file cannot be empty')
+      }
+
+      const formData = new FormData()
+
+      // Create blob for the file
+      const buffer = new ArrayBuffer(data.byteLength)
+      new Uint8Array(buffer).set(data)
+      const blob = new Blob([buffer], { type: mimeType })
+      formData.append('file', blob, filename)
+
+      if (options?.excludedAssets?.length) {
+        formData.append('excludedAssets', JSON.stringify(options.excludedAssets))
+      }
+      if (options?.excludedContracts?.length) {
+        formData.append('excludedContracts', JSON.stringify(options.excludedContracts))
+      }
+      if (options?.threshold !== undefined) {
+        formData.append('threshold', String(options.threshold))
+      }
+
+      response = await fetch(VERIFY_ENGINE_API_URL, {
+        method: 'POST',
+        headers,
+        body: formData,
+      })
+    }
+
+    if (!response.ok) {
+      let message = `Verify Engine request failed with status ${response.status}`
+      try {
+        const errorData = await response.json()
+        message = errorData.detail || errorData.message || message
+      } catch {
+        // Use default message
+      }
+      throw createApiError(response.status, message)
+    }
+
+    const data = (await response.json()) as VerifyApiResponse
+
+    return this.parseVerifyResponse(data)
+  }
+
+  /**
+   * Checks if the input is a URL object.
+   */
+  private isUrlInput(input: VerifyInput): input is { url: string } {
+    return (
+      typeof input === 'object' &&
+      input !== null &&
+      'url' in input &&
+      typeof (input as { url: string }).url === 'string'
+    )
+  }
+
+  /**
+   * Parses the Verify Engine API response into a structured result.
+   */
+  private parseVerifyResponse(data: VerifyApiResponse): VerifyResult {
+    const similarAssets: SimilarAsset[] = []
+    const nftMatches: NFTMatch[] = []
+
+    // Parse results - the structure varies based on findings
+    if (data.results && typeof data.results === 'object') {
+      const results = data.results as Record<string, unknown>
+
+      // Extract similar assets if present
+      if (Array.isArray(results.similarAssets)) {
+        for (const asset of results.similarAssets) {
+          similarAssets.push(asset as SimilarAsset)
+        }
+      }
+
+      // Extract NFT matches if present
+      if (Array.isArray(results.nfts)) {
+        for (const nft of results.nfts) {
+          nftMatches.push(nft as NFTMatch)
+        }
+      }
+
+      // Handle case where results is an array directly
+      if (Array.isArray(results)) {
+        for (const item of results) {
+          const entry = item as Record<string, unknown>
+          if (entry.contractAddress || entry.tokenId || entry.chain) {
+            nftMatches.push(entry as NFTMatch)
+          } else {
+            similarAssets.push(entry as SimilarAsset)
+          }
+        }
+      }
+    }
+
+    return {
+      searchNid: data.searchNid,
+      inputFileMimeType: data.inputFileMimetype,
+      orderId: data.orderID,
+      similarAssets,
+      nftMatches,
+      raw: data.results,
+    }
   }
 }

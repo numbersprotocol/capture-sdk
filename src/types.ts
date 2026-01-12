@@ -171,3 +171,105 @@ export interface HistoryApiResponse {
   nid: string
   commits: CommitApiResponse[]
 }
+
+// ============================================
+// Verify Engine Types
+// ============================================
+
+/**
+ * Input for asset verification - either a file or a URL.
+ */
+export type VerifyInput =
+  | FileInput
+  | { url: string }
+
+/**
+ * Options for the verify method.
+ */
+export interface VerifyOptions {
+  /**
+   * Distance threshold for filtering similar results.
+   * Lower values = stricter matching.
+   * @default 0.12
+   */
+  threshold?: number
+  /**
+   * List of NIDs to exclude from results.
+   */
+  excludedAssets?: string[]
+  /**
+   * List of contract addresses to exclude from results.
+   */
+  excludedContracts?: string[]
+}
+
+/**
+ * NFT information from cross-chain search.
+ */
+export interface NFTMatch {
+  /** Contract address */
+  contractAddress?: string
+  /** Token ID */
+  tokenId?: string
+  /** Blockchain network */
+  chain?: string
+  /** NFT name */
+  name?: string
+  /** NFT description */
+  description?: string
+  /** Image URL */
+  imageUrl?: string
+  /** Marketplace URL */
+  marketplaceUrl?: string
+  /** Owner address */
+  owner?: string
+  /** Additional metadata */
+  [key: string]: unknown
+}
+
+/**
+ * Similar asset found by the Verify Engine.
+ */
+export interface SimilarAsset {
+  /** Numbers ID of the similar asset */
+  nid?: string
+  /** Distance score (lower = more similar) */
+  distance?: number
+  /** Asset CID */
+  assetCid?: string
+  /** Creator information */
+  creator?: string
+  /** Creation timestamp */
+  createdAt?: number
+  /** Additional metadata */
+  [key: string]: unknown
+}
+
+/**
+ * Result from the Verify Engine theft detection.
+ */
+export interface VerifyResult {
+  /** Numbers ID assigned to the searched file */
+  searchNid: string
+  /** MIME type of the searched file */
+  inputFileMimeType: string
+  /** Order ID for this verification request */
+  orderId: string
+  /** Similar assets found */
+  similarAssets: SimilarAsset[]
+  /** Cross-chain NFT matches */
+  nftMatches: NFTMatch[]
+  /** Raw results from the API */
+  raw: unknown
+}
+
+/**
+ * API response from Verify Engine.
+ * @internal
+ */
+export interface VerifyApiResponse {
+  results: unknown
+  searchNid: string
+  inputFileMimetype: string
+  orderID: string
+}

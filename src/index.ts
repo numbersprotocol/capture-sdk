@@ -11,6 +11,12 @@ export type {
   Asset,
   Commit,
   AssetTree,
+  // Verify Engine types
+  VerifyInput,
+  VerifyOptions,
+  VerifyResult,
+  SimilarAsset,
+  NFTMatch,
 } from './types.js'
 
 // Errors
