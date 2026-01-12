@@ -313,6 +313,13 @@ export class Capture {
    *
    * @param nid - Numbers ID of the asset
    * @returns Asset information
+   *
+   * @example
+   * ```typescript
+   * const asset = await capture.get('bafybei...')
+   * console.log('Filename:', asset.filename)
+   * console.log('Caption:', asset.caption)
+   * ```
    */
   async get(nid: string): Promise<Asset> {
     if (!nid) {
@@ -334,6 +341,16 @@ export class Capture {
    *
    * @param nid - Numbers ID of the asset
    * @returns Array of commits
+   *
+   * @example
+   * ```typescript
+   * const history = await capture.getHistory('bafybei...')
+   * for (const commit of history) {
+   *   console.log('Action:', commit.action)
+   *   console.log('Author:', commit.author)
+   *   console.log('Date:', new Date(commit.timestamp * 1000))
+   * }
+   * ```
    */
   async getHistory(nid: string): Promise<Commit[]> {
     if (!nid) {
