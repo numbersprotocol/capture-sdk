@@ -1,0 +1,143 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  # Validate release
+  validate:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Releasing version: $VERSION"
+
+      - name: Verify version sync
+        run: python scripts/sync-versions.py --check
+
+      - name: Verify tag matches package versions
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          TS_VERSION=$(node -p "require('./ts/package.json').version")
+          PY_VERSION=$(grep -Po '(?<=^version = ")[^"]+' python/pyproject.toml)
+
+          if [ "$VERSION" != "$TS_VERSION" ]; then
+            echo "Tag version ($VERSION) does not match TypeScript version ($TS_VERSION)"
+            exit 1
+          fi
+
+          if [ "$VERSION" != "$PY_VERSION" ]; then
+            echo "Tag version ($VERSION) does not match Python version ($PY_VERSION)"
+            exit 1
+          fi
+
+          echo "Version $VERSION verified in both SDKs"
+
+  # Publish TypeScript to npm
+  publish-npm:
+    name: Publish to npm
+    needs: validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ts
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+          cache: "npm"
+          cache-dependency-path: ts/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Publish to npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Publish Python to PyPI
+  publish-pypi:
+    name: Publish to PyPI
+    needs: validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: python
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Build package
+        run: python -m build
+
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: twine upload dist/*
+
+  # Create GitHub Release
+  github-release:
+    name: Create GitHub Release
+    needs: [validate, publish-npm, publish-pypi]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: v${{ needs.validate.outputs.version }}
+          body: |
+            ## Capture SDK v${{ needs.validate.outputs.version }}
+
+            ### Installation
+
+            **TypeScript/JavaScript:**
+            ```bash
+            npm install @numbersprotocol/capture-sdk@${{ needs.validate.outputs.version }}
+            ```
+
+            **Python:**
+            ```bash
+            pip install capture-sdk==${{ needs.validate.outputs.version }}
+            ```
+
+            ### Links
+            - [npm package](https://www.npmjs.com/package/@numbersprotocol/capture-sdk)
+            - [PyPI package](https://pypi.org/project/capture-sdk/)
+          generate_release_notes: true

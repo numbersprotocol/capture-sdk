@@ -3,6 +3,7 @@ node_modules/
 
 # Build output
 dist/
+build/
 
 # IDE
 .idea/
@@ -25,7 +26,27 @@ npm-debug.log*
 
 # Test coverage
 coverage/
+htmlcov/
+.coverage
 
 # Temporary files
 *.tmp
 *.temp
+
+# TypeScript
+ts/dist/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+.eggs/
+python/dist/
+python/build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+venv/
+.venv/
