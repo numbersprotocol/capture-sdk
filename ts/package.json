@@ -1,5 +1,5 @@
 {
-  "name": "capture-sdk",
+  "name": "@numbersprotocol/capture-sdk",
   "version": "0.1.0",
   "description": "TypeScript SDK for Numbers Protocol Capture API",
   "type": "module",
@@ -25,7 +25,9 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "test": "echo \"No tests configured yet\"",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "numbers-protocol",
@@ -35,8 +37,17 @@
     "digital-assets",
     "web3"
   ],
-  "author": "",
+  "author": "Numbers Protocol",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/numbersprotocol/capture-sdk.git",
+    "directory": "ts"
+  },
+  "homepage": "https://github.com/numbersprotocol/capture-sdk#readme",
+  "bugs": {
+    "url": "https://github.com/numbersprotocol/capture-sdk/issues"
+  },
   "dependencies": {
     "ethers": "^6.13.0"
   },
@@ -47,5 +58,8 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
