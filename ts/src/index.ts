@@ -11,6 +11,11 @@ export type {
   Asset,
   Commit,
   AssetTree,
+  AssetSearchOptions,
+  AssetSearchResult,
+  SimilarMatch,
+  NftSearchResult,
+  NftRecord,
 } from './types.js'
 
 // Errors
@@ -26,3 +31,6 @@ export {
 
 // Crypto utilities (for advanced users)
 export { sha256, verifySignature } from './crypto.js'
+
+// Verify Engine URL helpers
+export { VerifyUrls } from './verify.js'

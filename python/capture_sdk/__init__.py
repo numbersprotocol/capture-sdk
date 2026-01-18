@@ -21,6 +21,11 @@ from .types import (
     Asset,
     Commit,
     AssetTree,
+    AssetSearchOptions,
+    AssetSearchResult,
+    SimilarMatch,
+    NftSearchResult,
+    NftRecord,
 )
 from .errors import (
     CaptureError,
@@ -32,6 +37,7 @@ from .errors import (
     NetworkError,
 )
 from .crypto import sha256, verify_signature
+from . import verify
 
 __version__ = "0.1.0"
 
@@ -47,6 +53,11 @@ __all__ = [
     "Asset",
     "Commit",
     "AssetTree",
+    "AssetSearchOptions",
+    "AssetSearchResult",
+    "SimilarMatch",
+    "NftSearchResult",
+    "NftRecord",
     # Errors
     "CaptureError",
     "AuthenticationError",
@@ -58,4 +69,6 @@ __all__ = [
     # Utilities
     "sha256",
     "verify_signature",
+    # Verify Engine helpers
+    "verify",
 ]

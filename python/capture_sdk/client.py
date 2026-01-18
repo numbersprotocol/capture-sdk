@@ -18,6 +18,11 @@ from .types import (
     Asset,
     Commit,
     AssetTree,
+    AssetSearchOptions,
+    AssetSearchResult,
+    SimilarMatch,
+    NftSearchResult,
+    NftRecord,
 )
 from .errors import ValidationError, CaptureError, create_api_error
 from .crypto import sha256, create_integrity_proof, sign_integrity_proof
@@ -26,6 +31,8 @@ from .crypto import sha256, create_integrity_proof, sign_integrity_proof
 DEFAULT_BASE_URL = "https://api.numbersprotocol.io/api/v3"
 HISTORY_API_URL = "https://e23hi68y55.execute-api.us-east-1.amazonaws.com/default/get-commits-storage-backend-jade-near"
 MERGE_TREE_API_URL = "https://us-central1-numbers-protocol-api.cloudfunctions.net/get-full-asset-tree"
+ASSET_SEARCH_API_URL = "https://us-central1-numbers-protocol-api.cloudfunctions.net/asset-search"
+NFT_SEARCH_API_URL = "https://eofveg1f59hrbn.m.pipedream.net"
 
 # Common MIME types by extension
 MIME_TYPES: dict[str, str] = {
@@ -553,4 +560,195 @@ class Capture:
             license=merged.get("license"),
             mime_type=merged.get("mimeType"),
             extra=extra,
+        )
+
+    def search_asset(
+        self,
+        *,
+        file_url: Optional[str] = None,
+        file: Optional[FileInput] = None,
+        nid: Optional[str] = None,
+        threshold: Optional[float] = None,
+        sample_count: Optional[int] = None,
+        options: Optional[AssetSearchOptions] = None,
+    ) -> AssetSearchResult:
+        """
+        Searches for similar assets using image similarity.
+
+        Args:
+            file_url: URL of the file to search.
+            file: File to search (path, Path, bytes, or bytearray).
+            nid: Numbers ID of an existing asset to search.
+            threshold: Similarity threshold (0-1, lower means more similar).
+            sample_count: Number of results to return.
+            options: AssetSearchOptions object (alternative to individual args).
+
+        Returns:
+            Search results with precise match and similar assets.
+
+        Example:
+            >>> # Search by file URL
+            >>> result = capture.search_asset(file_url="https://example.com/image.jpg")
+            >>>
+            >>> # Search by NID
+            >>> result = capture.search_asset(nid="bafybei...")
+            >>>
+            >>> # Search by file with options
+            >>> result = capture.search_asset(
+            ...     file="./photo.jpg",
+            ...     threshold=0.5,
+            ...     sample_count=10
+            ... )
+        """
+        # Build options from args if not provided
+        if options is None:
+            options = AssetSearchOptions(
+                file_url=file_url,
+                file=file,
+                nid=nid,
+                threshold=threshold,
+                sample_count=sample_count,
+            )
+
+        # Validate that at least one input source is provided
+        if not options.file_url and not options.file and not options.nid:
+            raise ValidationError(
+                "Must provide file_url, file, or nid for asset search"
+            )
+
+        # Validate threshold
+        if options.threshold is not None and (
+            options.threshold < 0 or options.threshold > 1
+        ):
+            raise ValidationError("threshold must be between 0 and 1")
+
+        # Validate sample_count
+        if options.sample_count is not None and (
+            options.sample_count < 1
+            or not isinstance(options.sample_count, int)
+        ):
+            raise ValidationError("sample_count must be a positive integer")
+
+        form_data: dict[str, Any] = {"token": self._token}
+
+        # Add input source
+        files_data: Optional[dict[str, Any]] = None
+        if options.file_url:
+            form_data["url"] = options.file_url
+        elif options.nid:
+            form_data["nid"] = options.nid
+        elif options.file:
+            data, filename, mime_type = _normalize_file(options.file)
+            files_data = {"file": (filename, data, mime_type)}
+
+        # Add optional parameters
+        if options.threshold is not None:
+            form_data["threshold"] = str(options.threshold)
+        if options.sample_count is not None:
+            form_data["sample_count"] = str(options.sample_count)
+
+        try:
+            if files_data:
+                response = self._client.post(
+                    ASSET_SEARCH_API_URL,
+                    data=form_data,
+                    files=files_data,
+                )
+            else:
+                response = self._client.post(
+                    ASSET_SEARCH_API_URL,
+                    data=form_data,
+                )
+        except httpx.RequestError as e:
+            raise create_api_error(0, f"Network error: {e}") from e
+
+        if not response.is_success:
+            message = f"Asset search failed with status {response.status_code}"
+            try:
+                error_data = response.json()
+                message = (
+                    error_data.get("message")
+                    or error_data.get("error")
+                    or message
+                )
+            except Exception:
+                pass
+            raise create_api_error(response.status_code, message)
+
+        data = response.json()
+
+        # Map response to our type
+        similar_matches = [
+            SimilarMatch(nid=m["nid"], distance=m["distance"])
+            for m in data.get("similar_matches", [])
+        ]
+
+        return AssetSearchResult(
+            precise_match=data.get("precise_match", ""),
+            input_file_mime_type=data.get("input_file_mime_type", ""),
+            similar_matches=similar_matches,
+            order_id=data.get("order_id", ""),
+        )
+
+    def search_nft(self, nid: str) -> NftSearchResult:
+        """
+        Searches for NFTs across multiple blockchains that match an asset.
+
+        Args:
+            nid: Numbers ID of the asset to search for.
+
+        Returns:
+            NFT records found across different chains.
+
+        Example:
+            >>> result = capture.search_nft("bafybei...")
+            >>> for nft in result.records:
+            ...     print(f"Found on {nft.network}: {nft.contract}#{nft.token_id}")
+        """
+        if not nid:
+            raise ValidationError("nid is required for NFT search")
+
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"token {self._token}",
+        }
+
+        try:
+            response = self._client.post(
+                NFT_SEARCH_API_URL,
+                headers=headers,
+                json={"nid": nid},
+            )
+        except httpx.RequestError as e:
+            raise create_api_error(0, f"Network error: {e}", nid) from e
+
+        if not response.is_success:
+            message = f"NFT search failed with status {response.status_code}"
+            try:
+                error_data = response.json()
+                message = (
+                    error_data.get("message")
+                    or error_data.get("error")
+                    or message
+                )
+            except Exception:
+                pass
+            raise create_api_error(response.status_code, message, nid)
+
+        data = response.json()
+
+        # Map response to our type
+        records = [
+            NftRecord(
+                token_id=r["token_id"],
+                contract=r["contract"],
+                network=r["network"],
+                owner=r.get("owner"),
+            )
+            for r in data.get("records", [])
+        ]
+
+        return NftSearchResult(
+            records=records,
+            order_id=data.get("order_id", ""),
         )

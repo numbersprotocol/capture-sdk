@@ -8,6 +8,11 @@ import {
   type AssetTree,
   type AssetApiResponse,
   type HistoryApiResponse,
+  type AssetSearchOptions,
+  type AssetSearchResult,
+  type SimilarMatch,
+  type NftSearchResult,
+  type NftRecord,
 } from './types.js'
 import {
   ValidationError,
@@ -21,6 +26,9 @@ const HISTORY_API_URL =
   'https://e23hi68y55.execute-api.us-east-1.amazonaws.com/default/get-commits-storage-backend-jade-near'
 const MERGE_TREE_API_URL =
   'https://us-central1-numbers-protocol-api.cloudfunctions.net/get-full-asset-tree'
+const ASSET_SEARCH_API_URL =
+  'https://us-central1-numbers-protocol-api.cloudfunctions.net/asset-search'
+const NFT_SEARCH_API_URL = 'https://eofveg1f59hrbn.m.pipedream.net'
 
 /** Common MIME types by extension */
 const MIME_TYPES: Record<string, string> = {
@@ -437,5 +445,171 @@ export class Capture {
     // The API returns { mergedAssetTree: {...}, assetTrees: [...] }
     // We return the merged tree
     return (data.mergedAssetTree || data) as AssetTree
+  }
+
+  /**
+   * Searches for similar assets using image similarity.
+   *
+   * @param options - Search options (must provide fileUrl, file, or nid)
+   * @returns Search results with precise match and similar assets
+   *
+   * @example
+   * ```typescript
+   * // Search by file URL
+   * const result = await capture.searchAsset({ fileUrl: 'https://example.com/image.jpg' })
+   *
+   * // Search by NID
+   * const result = await capture.searchAsset({ nid: 'bafybei...' })
+   *
+   * // Search by file with options
+   * const result = await capture.searchAsset({
+   *   file: './photo.jpg',
+   *   threshold: 0.5,
+   *   sampleCount: 10
+   * })
+   * ```
+   */
+  async searchAsset(options: AssetSearchOptions): Promise<AssetSearchResult> {
+    // Validate that at least one input source is provided
+    if (!options.fileUrl && !options.file && !options.nid) {
+      throw new ValidationError(
+        'Must provide fileUrl, file, or nid for asset search'
+      )
+    }
+
+    // Validate threshold
+    if (
+      options.threshold !== undefined &&
+      (options.threshold < 0 || options.threshold > 1)
+    ) {
+      throw new ValidationError('threshold must be between 0 and 1')
+    }
+
+    // Validate sampleCount
+    if (
+      options.sampleCount !== undefined &&
+      (options.sampleCount < 1 || !Number.isInteger(options.sampleCount))
+    ) {
+      throw new ValidationError('sampleCount must be a positive integer')
+    }
+
+    const formData = new FormData()
+    formData.append('token', this.token)
+
+    // Add input source
+    if (options.fileUrl) {
+      formData.append('url', options.fileUrl)
+    } else if (options.nid) {
+      formData.append('nid', options.nid)
+    } else if (options.file) {
+      const { data, filename, mimeType } = await normalizeFile(options.file)
+      const buffer = new ArrayBuffer(data.byteLength)
+      new Uint8Array(buffer).set(data)
+      const blob = new Blob([buffer], { type: mimeType })
+      formData.append('file', blob, filename)
+    }
+
+    // Add optional parameters
+    if (options.threshold !== undefined) {
+      formData.append('threshold', String(options.threshold))
+    }
+    if (options.sampleCount !== undefined) {
+      formData.append('sample_count', String(options.sampleCount))
+    }
+
+    const response = await fetch(ASSET_SEARCH_API_URL, {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (!response.ok) {
+      let message = `Asset search failed with status ${response.status}`
+      try {
+        const errorData = await response.json()
+        message = errorData.message || errorData.error || message
+      } catch {
+        // Use default message
+      }
+      throw createApiError(response.status, message)
+    }
+
+    const data = await response.json()
+
+    // Map response to our type
+    const similarMatches: SimilarMatch[] = (data.similar_matches || []).map(
+      (m: { nid: string; distance: number }) => ({
+        nid: m.nid,
+        distance: m.distance,
+      })
+    )
+
+    return {
+      preciseMatch: data.precise_match || '',
+      inputFileMimeType: data.input_file_mime_type || '',
+      similarMatches,
+      orderId: data.order_id || '',
+    }
+  }
+
+  /**
+   * Searches for NFTs across multiple blockchains that match an asset.
+   *
+   * @param nid - Numbers ID of the asset to search for
+   * @returns NFT records found across different chains
+   *
+   * @example
+   * ```typescript
+   * const result = await capture.searchNft('bafybei...')
+   * for (const nft of result.records) {
+   *   console.log(`Found on ${nft.network}: ${nft.contract}#${nft.tokenId}`)
+   * }
+   * ```
+   */
+  async searchNft(nid: string): Promise<NftSearchResult> {
+    if (!nid) {
+      throw new ValidationError('nid is required for NFT search')
+    }
+
+    const response = await fetch(NFT_SEARCH_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `token ${this.token}`,
+      },
+      body: JSON.stringify({ nid }),
+    })
+
+    if (!response.ok) {
+      let message = `NFT search failed with status ${response.status}`
+      try {
+        const errorData = await response.json()
+        message = errorData.message || errorData.error || message
+      } catch {
+        // Use default message
+      }
+      throw createApiError(response.status, message, nid)
+    }
+
+    const data = await response.json()
+
+    // Map response to our type
+    const records: NftRecord[] = (data.records || []).map(
+      (r: {
+        token_id: string
+        contract: string
+        network: string
+        owner?: string
+      }) => ({
+        tokenId: r.token_id,
+        contract: r.contract,
+        network: r.network,
+        owner: r.owner,
+      })
+    )
+
+    return {
+      records,
+      orderId: data.order_id || '',
+    }
   }
 }

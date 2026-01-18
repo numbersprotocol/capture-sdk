@@ -171,3 +171,67 @@ export interface HistoryApiResponse {
   nid: string
   commits: CommitApiResponse[]
 }
+
+/**
+ * Options for searching similar assets.
+ */
+export interface AssetSearchOptions {
+  /** URL of the file to search */
+  fileUrl?: string
+  /** File to search (path, File, Blob, Buffer, or Uint8Array) */
+  file?: FileInput
+  /** Numbers ID of an existing asset to search */
+  nid?: string
+  /** Similarity threshold (0-1, lower means more similar) */
+  threshold?: number
+  /** Number of results to return */
+  sampleCount?: number
+}
+
+/**
+ * A similar asset match from the search results.
+ */
+export interface SimilarMatch {
+  /** Numbers ID of the matched asset */
+  nid: string
+  /** Distance score (lower means more similar) */
+  distance: number
+}
+
+/**
+ * Result of an asset search operation.
+ */
+export interface AssetSearchResult {
+  /** NID of the exact match (empty if none) */
+  preciseMatch: string
+  /** MIME type of the input file */
+  inputFileMimeType: string
+  /** List of similar asset matches */
+  similarMatches: SimilarMatch[]
+  /** Order ID for the search transaction */
+  orderId: string
+}
+
+/**
+ * An NFT record from the NFT search results.
+ */
+export interface NftRecord {
+  /** NFT token ID */
+  tokenId: string
+  /** Smart contract address */
+  contract: string
+  /** Blockchain network (e.g., 'ethereum', 'polygon') */
+  network: string
+  /** Owner's wallet address */
+  owner?: string
+}
+
+/**
+ * Result of an NFT search operation.
+ */
+export interface NftSearchResult {
+  /** List of NFT records found */
+  records: NftRecord[]
+  /** Order ID for the search transaction */
+  orderId: string
+}

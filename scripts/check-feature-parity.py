@@ -31,6 +31,8 @@ EXPECTED_FEATURES = {
     "Capture.get": Feature("get"),
     "Capture.getHistory": Feature("get_history"),
     "Capture.getAssetTree": Feature("get_asset_tree"),
+    "Capture.searchAsset": Feature("search_asset"),
+    "Capture.searchNft": Feature("search_nft"),
     # Types
     "Type.CaptureOptions": Feature("CaptureOptions"),
     "Type.RegisterOptions": Feature("RegisterOptions"),
@@ -39,6 +41,11 @@ EXPECTED_FEATURES = {
     "Type.Asset": Feature("Asset"),
     "Type.Commit": Feature("Commit"),
     "Type.AssetTree": Feature("AssetTree"),
+    "Type.AssetSearchOptions": Feature("AssetSearchOptions"),
+    "Type.AssetSearchResult": Feature("AssetSearchResult"),
+    "Type.SimilarMatch": Feature("SimilarMatch"),
+    "Type.NftSearchResult": Feature("NftSearchResult"),
+    "Type.NftRecord": Feature("NftRecord"),
     # Errors
     "Error.CaptureError": Feature("CaptureError"),
     "Error.AuthenticationError": Feature("AuthenticationError"),
@@ -50,6 +57,11 @@ EXPECTED_FEATURES = {
     # Crypto
     "Crypto.sha256": Feature("sha256"),
     "Crypto.verifySignature": Feature("verify_signature"),
+    # Verify Engine URL helpers
+    "Verify.searchByNid": Feature("search_by_nid"),
+    "Verify.searchByNft": Feature("search_by_nft"),
+    "Verify.assetProfile": Feature("asset_profile"),
+    "Verify.assetProfileByNft": Feature("asset_profile_by_nft"),
 }
 
 
@@ -80,6 +92,11 @@ def check_ts_features() -> None:
         elif key.startswith("Crypto."):
             func_name = key.split(".")[1]
             if re.search(rf"(export\s+)?(async\s+)?function\s+{func_name}", ts_content):
+                feature.ts_implemented = True
+        elif key.startswith("Verify."):
+            func_name = key.split(".")[1]
+            # Look for method in VerifyUrls object
+            if re.search(rf"{func_name}\s*\(", ts_content):
                 feature.ts_implemented = True
 
 
@@ -114,6 +131,12 @@ def check_py_features() -> None:
             py_func = re.sub(r"([A-Z])", r"_\1", func_name).lower().lstrip("_")
             if re.search(rf"def\s+{py_func}\s*\(", py_content):
                 feature.py_implemented = True
+        elif key.startswith("Verify."):
+            func_name = key.split(".")[1]
+            # Convert camelCase to snake_case
+            py_func = re.sub(r"([A-Z])", r"_\1", func_name).lower().lstrip("_")
+            if re.search(rf"def\s+{py_func}\s*\(", py_content):
+                feature.py_implemented = True
 
 
 def print_report() -> None:
@@ -128,6 +151,7 @@ def print_report() -> None:
         "Types": [],
         "Errors": [],
         "Crypto Utilities": [],
+        "Verify Engine": [],
     }
 
     for key, feature in EXPECTED_FEATURES.items():
@@ -139,6 +163,8 @@ def print_report() -> None:
             categories["Errors"].append((key, feature))
         elif key.startswith("Crypto."):
             categories["Crypto Utilities"].append((key, feature))
+        elif key.startswith("Verify."):
+            categories["Verify Engine"].append((key, feature))
 
     total_features = 0
     ts_count = 0

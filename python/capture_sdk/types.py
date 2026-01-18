@@ -179,3 +179,82 @@ class AssetSignature:
     signature: str
     public_key: str
     integrity_sha: str
+
+
+# Verify Engine types
+
+
+@dataclass
+class AssetSearchOptions:
+    """Options for searching similar assets."""
+
+    file_url: Optional[str] = None
+    """URL of the file to search."""
+
+    file: Optional[FileInput] = None
+    """File to search (path, Path, bytes, or bytearray)."""
+
+    nid: Optional[str] = None
+    """Numbers ID of an existing asset to search."""
+
+    threshold: Optional[float] = None
+    """Similarity threshold (0-1, lower means more similar)."""
+
+    sample_count: Optional[int] = None
+    """Number of results to return."""
+
+
+@dataclass
+class SimilarMatch:
+    """A similar asset match from the search results."""
+
+    nid: str
+    """Numbers ID of the matched asset."""
+
+    distance: float
+    """Distance score (lower means more similar)."""
+
+
+@dataclass
+class AssetSearchResult:
+    """Result of an asset search operation."""
+
+    precise_match: str
+    """NID of the exact match (empty if none)."""
+
+    input_file_mime_type: str
+    """MIME type of the input file."""
+
+    similar_matches: list["SimilarMatch"]
+    """List of similar asset matches."""
+
+    order_id: str
+    """Order ID for the search transaction."""
+
+
+@dataclass
+class NftRecord:
+    """An NFT record from the NFT search results."""
+
+    token_id: str
+    """NFT token ID."""
+
+    contract: str
+    """Smart contract address."""
+
+    network: str
+    """Blockchain network (e.g., 'ethereum', 'polygon')."""
+
+    owner: Optional[str] = None
+    """Owner's wallet address."""
+
+
+@dataclass
+class NftSearchResult:
+    """Result of an NFT search operation."""
+
+    records: list["NftRecord"]
+    """List of NFT records found."""
+
+    order_id: str
+    """Order ID for the search transaction."""
