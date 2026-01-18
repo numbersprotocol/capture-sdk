@@ -214,7 +214,8 @@ class Capture:
                 pass
             raise create_api_error(response.status_code, message, nid)
 
-        return response.json()
+        result: dict[str, Any] = response.json()
+        return result
 
     def register(
         self,

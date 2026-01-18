@@ -102,7 +102,7 @@ def verify_signature(message: str, signature: str, expected_address: str) -> boo
             signature = f"0x{signature}"
 
         msg = encode_defunct(text=message)
-        recovered = Account.recover_message(msg, signature=signature)
+        recovered: str = Account.recover_message(msg, signature=signature)
         return recovered.lower() == expected_address.lower()
     except Exception:
         return False
