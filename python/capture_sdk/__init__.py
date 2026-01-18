@@ -11,33 +11,33 @@ Example:
     >>> print(asset.nid)
 """
 
+from . import verify
 from .client import Capture
+from .crypto import sha256, verify_signature
+from .errors import (
+    AuthenticationError,
+    CaptureError,
+    InsufficientFundsError,
+    NetworkError,
+    NotFoundError,
+    PermissionError,
+    ValidationError,
+)
 from .types import (
-    FileInput,
-    CaptureOptions,
-    RegisterOptions,
-    UpdateOptions,
-    SignOptions,
     Asset,
-    Commit,
-    AssetTree,
     AssetSearchOptions,
     AssetSearchResult,
-    SimilarMatch,
-    NftSearchResult,
+    AssetTree,
+    CaptureOptions,
+    Commit,
+    FileInput,
     NftRecord,
+    NftSearchResult,
+    RegisterOptions,
+    SignOptions,
+    SimilarMatch,
+    UpdateOptions,
 )
-from .errors import (
-    CaptureError,
-    AuthenticationError,
-    PermissionError,
-    NotFoundError,
-    InsufficientFundsError,
-    ValidationError,
-    NetworkError,
-)
-from .crypto import sha256, verify_signature
-from . import verify
 
 __version__ = "0.1.0"
 

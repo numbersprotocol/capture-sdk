@@ -1,6 +1,7 @@
 """Tests for the Capture client."""
 
 import pytest
+
 from capture_sdk import Capture, ValidationError
 
 

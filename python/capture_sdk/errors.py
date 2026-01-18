@@ -2,7 +2,6 @@
 Error classes for the Capture SDK.
 """
 
-from typing import Optional
 
 
 class CaptureError(Exception):
@@ -12,7 +11,7 @@ class CaptureError(Exception):
         self,
         message: str,
         code: str,
-        status_code: Optional[int] = None,
+        status_code: int | None = None,
     ):
         super().__init__(message)
         self.message = message
@@ -43,7 +42,7 @@ class PermissionError(CaptureError):
 class NotFoundError(CaptureError):
     """Thrown when the requested asset is not found."""
 
-    def __init__(self, nid: Optional[str] = None):
+    def __init__(self, nid: str | None = None):
         message = f"Asset not found: {nid}" if nid else "Asset not found"
         super().__init__(message, "NOT_FOUND", 404)
         self.nid = nid
@@ -66,14 +65,14 @@ class ValidationError(CaptureError):
 class NetworkError(CaptureError):
     """Thrown when a network or API request fails."""
 
-    def __init__(self, message: str, status_code: Optional[int] = None):
+    def __init__(self, message: str, status_code: int | None = None):
         super().__init__(message, "NETWORK_ERROR", status_code)
 
 
 def create_api_error(
     status_code: int,
     message: str,
-    nid: Optional[str] = None,
+    nid: str | None = None,
 ) -> CaptureError:
     """Maps HTTP status codes to appropriate error classes."""
     if status_code == 400:

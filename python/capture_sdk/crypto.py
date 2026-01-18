@@ -5,15 +5,14 @@ Cryptographic utilities for the Capture SDK.
 import hashlib
 import json
 import time
-from typing import Union
 
 from eth_account import Account
 from eth_account.messages import encode_defunct
 
-from .types import IntegrityProof, AssetSignature
+from .types import AssetSignature, IntegrityProof
 
 
-def sha256(data: Union[bytes, bytearray]) -> str:
+def sha256(data: bytes | bytearray) -> str:
     """
     Computes SHA-256 hash of data.
 

@@ -3,12 +3,11 @@ Type definitions for the Capture SDK.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Optional, Union
 from pathlib import Path
-
+from typing import Any
 
 # Flexible file input type - SDK handles all conversions internally
-FileInput = Union[str, Path, bytes, bytearray]
+FileInput = str | Path | bytes | bytearray
 """
 Supported file input types:
 - str: File path
@@ -28,7 +27,7 @@ class CaptureOptions:
     testnet: bool = False
     """Use testnet environment (default: False)."""
 
-    base_url: Optional[str] = None
+    base_url: str | None = None
     """Custom base URL (overrides testnet setting)."""
 
 
@@ -44,19 +43,19 @@ class SignOptions:
 class RegisterOptions:
     """Options for registering a new asset."""
 
-    filename: Optional[str] = None
+    filename: str | None = None
     """Filename (required for bytes/bytearray inputs)."""
 
-    caption: Optional[str] = None
+    caption: str | None = None
     """Brief description of the asset."""
 
-    headline: Optional[str] = None
+    headline: str | None = None
     """Asset title (max 25 characters)."""
 
     public_access: bool = True
     """Pin to public IPFS gateway (default: True)."""
 
-    sign: Optional[SignOptions] = None
+    sign: SignOptions | None = None
     """Optional signing configuration."""
 
 
@@ -64,16 +63,16 @@ class RegisterOptions:
 class UpdateOptions:
     """Options for updating an existing asset."""
 
-    caption: Optional[str] = None
+    caption: str | None = None
     """Updated description."""
 
-    headline: Optional[str] = None
+    headline: str | None = None
     """Updated title (max 25 characters)."""
 
-    commit_message: Optional[str] = None
+    commit_message: str | None = None
     """Description of the changes."""
 
-    custom_metadata: Optional[dict[str, Any]] = None
+    custom_metadata: dict[str, Any] | None = None
     """Custom metadata fields."""
 
 
@@ -90,10 +89,10 @@ class Asset:
     mime_type: str
     """MIME type of the asset."""
 
-    caption: Optional[str] = None
+    caption: str | None = None
     """Asset description."""
 
-    headline: Optional[str] = None
+    headline: str | None = None
     """Asset title."""
 
 
@@ -124,34 +123,34 @@ class Commit:
 class AssetTree:
     """Merged asset tree containing full provenance data."""
 
-    asset_cid: Optional[str] = None
+    asset_cid: str | None = None
     """Asset content identifier."""
 
-    asset_sha256: Optional[str] = None
+    asset_sha256: str | None = None
     """SHA-256 hash of the asset."""
 
-    creator_name: Optional[str] = None
+    creator_name: str | None = None
     """Creator's name."""
 
-    creator_wallet: Optional[str] = None
+    creator_wallet: str | None = None
     """Creator's wallet address."""
 
-    created_at: Optional[int] = None
+    created_at: int | None = None
     """Creation timestamp."""
 
-    location_created: Optional[str] = None
+    location_created: str | None = None
     """Location where asset was created."""
 
-    caption: Optional[str] = None
+    caption: str | None = None
     """Asset description."""
 
-    headline: Optional[str] = None
+    headline: str | None = None
     """Asset title."""
 
-    license: Optional[str] = None
+    license: str | None = None
     """License information."""
 
-    mime_type: Optional[str] = None
+    mime_type: str | None = None
     """MIME type."""
 
     extra: dict[str, Any] = field(default_factory=dict)
@@ -188,19 +187,19 @@ class AssetSignature:
 class AssetSearchOptions:
     """Options for searching similar assets."""
 
-    file_url: Optional[str] = None
+    file_url: str | None = None
     """URL of the file to search."""
 
-    file: Optional[FileInput] = None
+    file: FileInput | None = None
     """File to search (path, Path, bytes, or bytearray)."""
 
-    nid: Optional[str] = None
+    nid: str | None = None
     """Numbers ID of an existing asset to search."""
 
-    threshold: Optional[float] = None
+    threshold: float | None = None
     """Similarity threshold (0-1, lower means more similar)."""
 
-    sample_count: Optional[int] = None
+    sample_count: int | None = None
     """Number of results to return."""
 
 
@@ -245,7 +244,7 @@ class NftRecord:
     network: str
     """Blockchain network (e.g., 'ethereum', 'polygon')."""
 
-    owner: Optional[str] = None
+    owner: str | None = None
     """Owner's wallet address."""
 
 

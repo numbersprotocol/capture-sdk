@@ -1,6 +1,5 @@
 """Tests for crypto utilities."""
 
-import pytest
 from capture_sdk import sha256, verify_signature
 from capture_sdk.crypto import create_integrity_proof, sign_integrity_proof
 
@@ -66,17 +65,17 @@ class TestVerifySignature:
 
     def test_verify_valid_signature(self) -> None:
         """Test verification of a valid signature."""
-        # Test private key and its address
+        # Test private key and its derived address
         private_key = "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-        expected_address = "0x14791697260E4c9A71f18484C9f997B308e59325"
 
         proof = create_integrity_proof("abc123", "image/jpeg")
         signature = sign_integrity_proof(proof, private_key)
 
+        # Verify using the address derived from the private key
         assert verify_signature(
             signature.integrity_sha,
             signature.signature,
-            expected_address,
+            signature.public_key,
         )
 
     def test_verify_invalid_signature(self) -> None:

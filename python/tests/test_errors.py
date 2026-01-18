@@ -1,14 +1,13 @@
 """Tests for error classes."""
 
-import pytest
 from capture_sdk import (
-    CaptureError,
     AuthenticationError,
-    PermissionError,
-    NotFoundError,
+    CaptureError,
     InsufficientFundsError,
-    ValidationError,
     NetworkError,
+    NotFoundError,
+    PermissionError,
+    ValidationError,
 )
 from capture_sdk.errors import create_api_error
 

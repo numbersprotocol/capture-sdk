@@ -5,28 +5,27 @@ Main Capture SDK client.
 import json
 import mimetypes
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 from urllib.parse import urlencode
 
 import httpx
 
+from .crypto import create_integrity_proof, sha256, sign_integrity_proof
+from .errors import CaptureError, ValidationError, create_api_error
 from .types import (
-    FileInput,
-    CaptureOptions,
-    RegisterOptions,
-    UpdateOptions,
     Asset,
-    Commit,
-    AssetTree,
     AssetSearchOptions,
     AssetSearchResult,
-    SimilarMatch,
-    NftSearchResult,
+    AssetTree,
+    CaptureOptions,
+    Commit,
+    FileInput,
     NftRecord,
+    NftSearchResult,
+    RegisterOptions,
+    SimilarMatch,
+    UpdateOptions,
 )
-from .errors import ValidationError, CaptureError, create_api_error
-from .crypto import sha256, create_integrity_proof, sign_integrity_proof
-
 
 DEFAULT_BASE_URL = "https://api.numbersprotocol.io/api/v3"
 HISTORY_API_URL = "https://e23hi68y55.execute-api.us-east-1.amazonaws.com/default/get-commits-storage-backend-jade-near"
@@ -65,7 +64,7 @@ def _get_mime_type(filename: str) -> str:
 
 def _normalize_file(
     file_input: FileInput,
-    options: Optional[RegisterOptions] = None,
+    options: RegisterOptions | None = None,
 ) -> tuple[bytes, str, str]:
     """
     Normalizes various file input types to a common format.
@@ -93,7 +92,7 @@ def _normalize_file(
         return data, filename, mime_type
 
     # 3. bytes or bytearray
-    if isinstance(file_input, (bytes, bytearray)):
+    if isinstance(file_input, bytes | bytearray):
         if not options or not options.filename:
             raise ValidationError("filename is required for binary input")
         data = bytes(file_input)
@@ -128,11 +127,11 @@ class Capture:
 
     def __init__(
         self,
-        token: Optional[str] = None,
+        token: str | None = None,
         *,
         testnet: bool = False,
-        base_url: Optional[str] = None,
-        options: Optional[CaptureOptions] = None,
+        base_url: str | None = None,
+        options: CaptureOptions | None = None,
     ):
         """
         Initialize the Capture client.
@@ -171,10 +170,10 @@ class Capture:
         method: str,
         url: str,
         *,
-        data: Optional[dict[str, Any]] = None,
-        files: Optional[dict[str, Any]] = None,
-        json_body: Optional[dict[str, Any]] = None,
-        nid: Optional[str] = None,
+        data: dict[str, Any] | None = None,
+        files: dict[str, Any] | None = None,
+        json_body: dict[str, Any] | None = None,
+        nid: str | None = None,
     ) -> dict[str, Any]:
         """Makes an authenticated API request."""
         headers = {"Authorization": f"token {self._token}"}
@@ -221,12 +220,12 @@ class Capture:
         self,
         file: FileInput,
         *,
-        filename: Optional[str] = None,
-        caption: Optional[str] = None,
-        headline: Optional[str] = None,
+        filename: str | None = None,
+        caption: str | None = None,
+        headline: str | None = None,
         public_access: bool = True,
-        sign: Optional[dict[str, str]] = None,
-        options: Optional[RegisterOptions] = None,
+        sign: dict[str, str] | None = None,
+        options: RegisterOptions | None = None,
     ) -> Asset:
         """
         Registers a new asset.
@@ -330,11 +329,11 @@ class Capture:
         self,
         nid: str,
         *,
-        caption: Optional[str] = None,
-        headline: Optional[str] = None,
-        commit_message: Optional[str] = None,
-        custom_metadata: Optional[dict[str, Any]] = None,
-        options: Optional[UpdateOptions] = None,
+        caption: str | None = None,
+        headline: str | None = None,
+        commit_message: str | None = None,
+        custom_metadata: dict[str, Any] | None = None,
+        options: UpdateOptions | None = None,
     ) -> Asset:
         """
         Updates an existing asset's metadata.
@@ -565,12 +564,12 @@ class Capture:
     def search_asset(
         self,
         *,
-        file_url: Optional[str] = None,
-        file: Optional[FileInput] = None,
-        nid: Optional[str] = None,
-        threshold: Optional[float] = None,
-        sample_count: Optional[int] = None,
-        options: Optional[AssetSearchOptions] = None,
+        file_url: str | None = None,
+        file: FileInput | None = None,
+        nid: str | None = None,
+        threshold: float | None = None,
+        sample_count: int | None = None,
+        options: AssetSearchOptions | None = None,
     ) -> AssetSearchResult:
         """
         Searches for similar assets using image similarity.
@@ -632,7 +631,7 @@ class Capture:
         form_data: dict[str, Any] = {"token": self._token}
 
         # Add input source
-        files_data: Optional[dict[str, Any]] = None
+        files_data: dict[str, Any] | None = None
         if options.file_url:
             form_data["url"] = options.file_url
         elif options.nid:
