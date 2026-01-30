@@ -1,1 +1,1 @@
-"""Tests for capture_sdk package."""
+"""Tests for numbersprotocol_capture package."""

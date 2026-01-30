@@ -15,7 +15,7 @@ npm install @numbersprotocol/capture-sdk
 
 ### Python
 ```bash
-pip install capture-sdk
+pip install numbersprotocol-capture-sdk
 ```
 
 ## Quick Start
@@ -35,7 +35,7 @@ const tree = await capture.getAssetTree(asset.nid)
 
 ### Python
 ```python
-from capture_sdk import Capture
+from numbersprotocol_capture import Capture
 
 capture = Capture(token='YOUR_TOKEN')
 
@@ -77,7 +77,7 @@ capture-sdk/
 │   ├── package.json       # npm package config
 │   └── README.md
 ├── python/                # Python SDK
-│   ├── capture_sdk/       # Source code
+│   ├── numbersprotocol_capture/  # Source code
 │   ├── pyproject.toml     # PyPI package config
 │   └── README.md
 ├── scripts/               # Maintenance tools

@@ -1,6 +1,6 @@
 """Tests for error classes."""
 
-from capture_sdk import (
+from numbersprotocol_capture import (
     AuthenticationError,
     CaptureError,
     InsufficientFundsError,
@@ -9,7 +9,7 @@ from capture_sdk import (
     PermissionError,
     ValidationError,
 )
-from capture_sdk.errors import create_api_error
+from numbersprotocol_capture.errors import create_api_error
 
 
 class TestErrorClasses:

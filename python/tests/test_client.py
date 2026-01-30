@@ -2,7 +2,7 @@
 
 import pytest
 
-from capture_sdk import Capture, ValidationError
+from numbersprotocol_capture import Capture, ValidationError
 
 
 class TestCaptureClient:

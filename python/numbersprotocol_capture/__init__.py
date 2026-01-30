@@ -1,11 +1,11 @@
 """
-Capture SDK - Python SDK for Numbers Protocol Capture API.
+Numbers Protocol Capture SDK - Python SDK for Numbers Protocol Capture API.
 
 A developer-friendly SDK for registering and managing digital assets
 with blockchain-backed provenance.
 
 Example:
-    >>> from capture_sdk import Capture
+    >>> from numbersprotocol_capture import Capture
     >>> capture = Capture(token="your-api-token")
     >>> asset = capture.register("./photo.jpg", caption="My photo")
     >>> print(asset.nid)

@@ -5,13 +5,13 @@ Python SDK for the [Numbers Protocol](https://numbersprotocol.io/) Capture API. 
 ## Installation
 
 ```bash
-pip install capture-sdk
+pip install numbersprotocol-capture-sdk
 ```
 
 ## Quick Start
 
 ```python
-from capture_sdk import Capture
+from numbersprotocol_capture import Capture
 
 # Initialize client
 capture = Capture(token="your-api-token")
@@ -131,7 +131,7 @@ Get merged provenance data.
 ## Error Handling
 
 ```python
-from capture_sdk import (
+from numbersprotocol_capture import (
     CaptureError,
     AuthenticationError,
     NotFoundError,

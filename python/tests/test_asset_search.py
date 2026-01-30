@@ -9,8 +9,8 @@ import pytest
 import respx
 from httpx import Response
 
-from capture_sdk import Capture
-from capture_sdk.types import AssetSearchResult, SimilarMatch
+from numbersprotocol_capture import Capture
+from numbersprotocol_capture.types import AssetSearchResult, SimilarMatch
 
 # Test asset NID
 TEST_NID = "bafybeif3mhxhkhfwuszl2lybtai3hz3q6naqpfisd4q55mcc7opkmiv5ei"
@@ -210,7 +210,7 @@ class TestAssetSearchValidation:
 
     def test_search_asset_requires_input_source(self, capture_client):
         """Verify search_asset raises error when no input source is provided."""
-        from capture_sdk.errors import ValidationError
+        from numbersprotocol_capture.errors import ValidationError
 
         with pytest.raises(
             ValidationError,
@@ -220,7 +220,7 @@ class TestAssetSearchValidation:
 
     def test_search_asset_validates_threshold(self, capture_client):
         """Verify search_asset validates threshold range."""
-        from capture_sdk.errors import ValidationError
+        from numbersprotocol_capture.errors import ValidationError
 
         with pytest.raises(
             ValidationError,
@@ -230,7 +230,7 @@ class TestAssetSearchValidation:
 
     def test_search_asset_validates_sample_count(self, capture_client):
         """Verify search_asset validates sample_count is positive."""
-        from capture_sdk.errors import ValidationError
+        from numbersprotocol_capture.errors import ValidationError
 
         with pytest.raises(
             ValidationError,

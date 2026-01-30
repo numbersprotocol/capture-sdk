@@ -23,9 +23,9 @@ npm test             # Run tests
 cd python
 pip install -e ".[dev]"    # Install with dev dependencies
 pytest -v                  # Run tests with verbose output
-pytest --cov=capture_sdk   # Run tests with coverage
+pytest --cov=numbersprotocol_capture   # Run tests with coverage
 ruff check .               # Lint
-mypy capture_sdk           # Type check
+mypy numbersprotocol_capture           # Type check
 ```
 
 ## Version Management
@@ -41,7 +41,7 @@ python scripts/check-feature-parity.py            # Verify feature parity
 ## Architecture
 
 ```
-ts/src/                     python/capture_sdk/
+ts/src/                     python/numbersprotocol_capture/
 ├── index.ts (exports)      ├── __init__.py (exports)
 ├── client.ts (Capture)     ├── client.py (Capture)
 ├── types.ts                ├── types.py
@@ -68,4 +68,24 @@ Both SDKs expose the same API with language-appropriate naming:
 
 1. **Dual implementation required**: New features must be implemented in both languages
 2. **CI validates parity**: Feature parity and version sync are checked on every PR
-3. **Release via tags**: Push `v*` tag to trigger npm and PyPI publish
+3. **Auto-release on main**: Commits to main automatically bump version and publish to npm/PyPI
+
+## Package Names
+
+| Platform | Package Name | Import |
+|----------|--------------|--------|
+| npm | `@numbersprotocol/capture-sdk` | `import { Capture } from '@numbersprotocol/capture-sdk'` |
+| PyPI | `numbersprotocol-capture-sdk` | `from numbersprotocol_capture import Capture` |
+
+## Release Process
+
+Releases are automated when commits are pushed to the `main` branch:
+
+1. **Auto-bump**: Version is automatically bumped based on commit message:
+   - `[major]` or `BREAKING CHANGE` → major version bump
+   - `[minor]` or `feat:` → minor version bump
+   - Default → patch version bump
+
+2. **Skip release**: Add `[skip release]` or `[no release]` to skip automatic release
+
+3. **Manual release**: Push a `v*` tag to trigger release manually

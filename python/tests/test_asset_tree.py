@@ -11,8 +11,8 @@ import pytest
 import respx
 from httpx import Response
 
-from capture_sdk import Capture, License
-from capture_sdk.types import AssetTree
+from numbersprotocol_capture import Capture, License
+from numbersprotocol_capture.types import AssetTree
 
 # Test asset NID
 TEST_NID = "bafybeif3mhxhkhfwuszl2lybtai3hz3q6naqpfisd4q55mcc7opkmiv5ei"

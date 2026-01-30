@@ -134,10 +134,10 @@ jobs:
 
             **Python:**
             ```bash
-            pip install capture-sdk==${{ needs.validate.outputs.version }}
+            pip install numbersprotocol-capture-sdk==${{ needs.validate.outputs.version }}
             ```
 
             ### Links
             - [npm package](https://www.npmjs.com/package/@numbersprotocol/capture-sdk)
-            - [PyPI package](https://pypi.org/project/capture-sdk/)
+            - [PyPI package](https://pypi.org/project/numbersprotocol-capture-sdk/)
           generate_release_notes: true
