@@ -153,6 +153,9 @@ class AssetTree:
     mime_type: str | None = None
     """MIME type."""
 
+    nft_record: str | None = None
+    """NFT record CID (if asset has been minted as NFT)."""
+
     extra: dict[str, Any] = field(default_factory=dict)
     """Additional fields from commits."""
 

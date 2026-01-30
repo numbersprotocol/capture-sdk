@@ -112,6 +112,8 @@ export interface AssetTree {
   license?: string
   /** MIME type */
   mimeType?: string
+  /** NFT record CID (if asset has been minted as NFT) */
+  nftRecord?: string
   /** Additional fields from commits */
   [key: string]: unknown
 }
