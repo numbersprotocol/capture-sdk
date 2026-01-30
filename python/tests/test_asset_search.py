@@ -237,3 +237,114 @@ class TestAssetSearchValidation:
             match="sample_count must be a positive integer",
         ):
             capture_client.search_asset(nid=TEST_NID, sample_count=0)
+
+
+class TestAssetSearchRequestConstruction:
+    """Tests for verifying correct request construction.
+
+    These tests ensure the SDK sends properly formatted requests to the API,
+    including correct authentication headers. This catches bugs like sending
+    the token in form data instead of the Authorization header.
+    """
+
+    @respx.mock
+    def test_search_asset_sends_authorization_header(self):
+        """Verify Authorization header is sent with correct format."""
+        test_token = "my-secret-token"
+        capture = Capture(token=test_token)
+
+        mock_response = {
+            "precise_match": "",
+            "input_file_mime_type": "",
+            "similar_matches": [],
+            "order_id": "test-order",
+        }
+
+        route = respx.post(ASSET_SEARCH_API_URL).mock(
+            return_value=Response(200, json=mock_response)
+        )
+
+        capture.search_asset(nid=TEST_NID)
+
+        # Verify the request was made
+        assert route.called
+        assert route.call_count == 1
+
+        # Verify Authorization header format: "token {token_value}"
+        request = route.calls[0].request
+        assert "Authorization" in request.headers
+        assert request.headers["Authorization"] == f"token {test_token}"
+
+    @respx.mock
+    def test_search_asset_does_not_send_token_in_form_data(self):
+        """Verify token is NOT sent in form data (only in header)."""
+        test_token = "my-secret-token"
+        capture = Capture(token=test_token)
+
+        mock_response = {
+            "precise_match": "",
+            "input_file_mime_type": "",
+            "similar_matches": [],
+            "order_id": "test-order",
+        }
+
+        route = respx.post(ASSET_SEARCH_API_URL).mock(
+            return_value=Response(200, json=mock_response)
+        )
+
+        capture.search_asset(nid=TEST_NID)
+
+        # Get the request body
+        request = route.calls[0].request
+        body_content = request.content.decode("utf-8")
+
+        # Token should NOT appear in form data
+        # (it should only be in the Authorization header)
+        assert "my-secret-token" not in body_content
+
+    @respx.mock
+    def test_search_asset_sends_nid_in_form_data(self):
+        """Verify NID is sent in form data when searching by NID."""
+        capture = Capture(token="test-token")
+
+        mock_response = {
+            "precise_match": "",
+            "input_file_mime_type": "",
+            "similar_matches": [],
+            "order_id": "test-order",
+        }
+
+        route = respx.post(ASSET_SEARCH_API_URL).mock(
+            return_value=Response(200, json=mock_response)
+        )
+
+        capture.search_asset(nid=TEST_NID)
+
+        # Verify NID is in the request body
+        request = route.calls[0].request
+        body_content = request.content.decode("utf-8")
+        assert TEST_NID in body_content
+
+    @respx.mock
+    def test_search_asset_sends_optional_params_in_form_data(self):
+        """Verify optional parameters are sent in form data."""
+        capture = Capture(token="test-token")
+
+        mock_response = {
+            "precise_match": "",
+            "input_file_mime_type": "",
+            "similar_matches": [],
+            "order_id": "test-order",
+        }
+
+        route = respx.post(ASSET_SEARCH_API_URL).mock(
+            return_value=Response(200, json=mock_response)
+        )
+
+        capture.search_asset(nid=TEST_NID, threshold=0.5, sample_count=10)
+
+        # Verify optional params are in the request body
+        request = route.calls[0].request
+        body_content = request.content.decode("utf-8")
+        assert "0.5" in body_content  # threshold
+        assert "10" in body_content  # sample_count
