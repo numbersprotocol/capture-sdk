@@ -2,6 +2,8 @@
 Main Capture SDK client.
 """
 
+from __future__ import annotations
+
 import json
 import mimetypes
 from pathlib import Path
@@ -156,7 +158,7 @@ class Capture:
         self._base_url = base_url or DEFAULT_BASE_URL
         self._client = httpx.Client(timeout=30.0)
 
-    def __enter__(self) -> "Capture":
+    def __enter__(self) -> Capture:
         return self
 
     def __exit__(self, *args: Any) -> None:

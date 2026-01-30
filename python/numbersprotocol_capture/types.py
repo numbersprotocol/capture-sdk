@@ -2,6 +2,8 @@
 Type definitions for the Capture SDK.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -258,7 +260,7 @@ class AssetSearchResult:
     input_file_mime_type: str
     """MIME type of the input file."""
 
-    similar_matches: list["SimilarMatch"]
+    similar_matches: list[SimilarMatch]
     """List of similar asset matches."""
 
     order_id: str
@@ -286,7 +288,7 @@ class NftRecord:
 class NftSearchResult:
     """Result of an NFT search operation."""
 
-    records: list["NftRecord"]
+    records: list[NftRecord]
     """List of NFT records found."""
 
     order_id: str

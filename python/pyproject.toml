@@ -61,7 +61,7 @@ packages = ["numbersprotocol_capture"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py314"
+target-version = "py313"  # Use py313 until ruff supports py314
 
 [tool.ruff.lint]
 select = [
