@@ -120,14 +120,30 @@ class Commit:
 
 
 @dataclass
+class License:
+    """License information for an asset."""
+
+    name: str | None = None
+    """License name (e.g., 'CC BY 4.0')."""
+
+    document: str | None = None
+    """URL to the license document."""
+
+
+@dataclass
 class AssetTree:
-    """Merged asset tree containing full provenance data."""
+    """
+    Merged asset tree containing full provenance data.
+
+    Follows the Numbers Protocol AssetTree specification.
+    See: https://docs.numbersprotocol.io/introduction/numbers-protocol/defining-web3-assets/assettree
+    """
 
     asset_cid: str | None = None
-    """Asset content identifier."""
+    """Asset content identifier (IPFS CID)."""
 
     asset_sha256: str | None = None
-    """SHA-256 hash of the asset."""
+    """SHA-256 hash of the asset file."""
 
     creator_name: str | None = None
     """Creator's name."""
@@ -136,25 +152,40 @@ class AssetTree:
     """Creator's wallet address."""
 
     created_at: int | None = None
-    """Creation timestamp."""
+    """Unix timestamp when asset was created."""
 
     location_created: str | None = None
     """Location where asset was created."""
 
     caption: str | None = None
-    """Asset description."""
+    """Asset description/abstract."""
 
     headline: str | None = None
     """Asset title."""
 
-    license: str | None = None
+    license: License | None = None
     """License information."""
 
     mime_type: str | None = None
-    """MIME type."""
+    """MIME type (encodingFormat)."""
 
     nft_record: str | None = None
     """NFT record CID (if asset has been minted as NFT)."""
+
+    used_by: str | None = None
+    """URL of website that uses the asset."""
+
+    integrity_cid: str | None = None
+    """IPFS CID of the integrity proof."""
+
+    digital_source_type: str | None = None
+    """Digital source type (e.g., digitalCapture, trainedAlgorithmicMedia)."""
+
+    mining_preference: str | None = None
+    """Mining/indexing preference."""
+
+    generated_by: str | None = None
+    """AI/algorithm information for generated content."""
 
     extra: dict[str, Any] = field(default_factory=dict)
     """Additional fields from commits."""

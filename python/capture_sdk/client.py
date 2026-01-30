@@ -20,6 +20,7 @@ from .types import (
     CaptureOptions,
     Commit,
     FileInput,
+    License,
     NftRecord,
     NftSearchResult,
     RegisterOptions,
@@ -545,9 +546,26 @@ class Capture:
             "license",
             "mimeType",
             "nftRecord",
+            "usedBy",
+            "integrityCid",
+            "digitalSourceType",
+            "miningPreference",
+            "generatedBy",
         }
 
         extra = {k: v for k, v in merged.items() if k not in known_fields}
+
+        # Parse license field - can be object or string
+        license_data = merged.get("license")
+        license_obj = None
+        if isinstance(license_data, dict):
+            license_obj = License(
+                name=license_data.get("name"),
+                document=license_data.get("document"),
+            )
+        elif isinstance(license_data, str):
+            # Backwards compatibility: treat string as license name
+            license_obj = License(name=license_data)
 
         return AssetTree(
             asset_cid=merged.get("assetCid"),
@@ -558,9 +576,14 @@ class Capture:
             location_created=merged.get("locationCreated"),
             caption=merged.get("caption"),
             headline=merged.get("headline"),
-            license=merged.get("license"),
+            license=license_obj,
             mime_type=merged.get("mimeType"),
             nft_record=merged.get("nftRecord"),
+            used_by=merged.get("usedBy"),
+            integrity_cid=merged.get("integrityCid"),
+            digital_source_type=merged.get("digitalSourceType"),
+            mining_preference=merged.get("miningPreference"),
+            generated_by=merged.get("generatedBy"),
             extra=extra,
         )
 

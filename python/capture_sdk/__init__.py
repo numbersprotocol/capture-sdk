@@ -31,6 +31,7 @@ from .types import (
     CaptureOptions,
     Commit,
     FileInput,
+    License,
     NftRecord,
     NftSearchResult,
     RegisterOptions,
@@ -39,7 +40,7 @@ from .types import (
     UpdateOptions,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     # Main client
@@ -53,6 +54,7 @@ __all__ = [
     "Asset",
     "Commit",
     "AssetTree",
+    "License",
     "AssetSearchOptions",
     "AssetSearchResult",
     "SimilarMatch",
