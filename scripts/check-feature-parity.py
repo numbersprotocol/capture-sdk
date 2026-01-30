@@ -41,6 +41,7 @@ EXPECTED_FEATURES = {
     "Type.Asset": Feature("Asset"),
     "Type.Commit": Feature("Commit"),
     "Type.AssetTree": Feature("AssetTree"),
+    "Type.License": Feature("License"),
     "Type.AssetSearchOptions": Feature("AssetSearchOptions"),
     "Type.AssetSearchResult": Feature("AssetSearchResult"),
     "Type.SimilarMatch": Feature("SimilarMatch"),

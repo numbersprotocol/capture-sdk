@@ -93,27 +93,53 @@ export interface Commit {
 }
 
 /**
+ * License information for an asset.
+ */
+export interface License {
+  /** License name (e.g., "CC BY 4.0") */
+  name?: string
+  /** URL to the license document */
+  document?: string
+}
+
+/**
  * Merged asset tree containing full provenance data.
+ * Follows the Numbers Protocol AssetTree specification.
+ * @see https://docs.numbersprotocol.io/introduction/numbers-protocol/defining-web3-assets/assettree
  */
 export interface AssetTree {
-  /** Asset content identifiers */
+  /** Asset content identifier (IPFS CID) */
   assetCid?: string
+  /** SHA-256 hash of the asset file */
   assetSha256?: string
-  /** Creator information */
+  /** Creator's name */
   creatorName?: string
+  /** Creator's wallet address */
   creatorWallet?: string
-  /** Creation metadata */
+  /** Unix timestamp when asset was created */
   createdAt?: number
+  /** Location where asset was created */
   locationCreated?: string
-  /** Asset description */
+  /** Asset description/abstract */
   caption?: string
+  /** Asset title */
   headline?: string
   /** License information */
-  license?: string
-  /** MIME type */
+  license?: License
+  /** MIME type (encodingFormat) */
   mimeType?: string
   /** NFT record CID (if asset has been minted as NFT) */
   nftRecord?: string
+  /** URL of website that uses the asset */
+  usedBy?: string
+  /** IPFS CID of the integrity proof */
+  integrityCid?: string
+  /** Digital source type (e.g., digitalCapture, trainedAlgorithmicMedia) */
+  digitalSourceType?: string
+  /** Mining/indexing preference */
+  miningPreference?: string
+  /** AI/algorithm information for generated content */
+  generatedBy?: string
   /** Additional fields from commits */
   [key: string]: unknown
 }
