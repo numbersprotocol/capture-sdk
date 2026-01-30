@@ -1,7 +1,7 @@
 """Tests for crypto utilities."""
 
-from capture_sdk import sha256, verify_signature
-from capture_sdk.crypto import create_integrity_proof, sign_integrity_proof
+from numbersprotocol_capture import sha256, verify_signature
+from numbersprotocol_capture.crypto import create_integrity_proof, sign_integrity_proof
 
 
 class TestSha256:

@@ -13,7 +13,7 @@ import os
 import sys
 from datetime import datetime
 
-from capture_sdk import Capture, NotFoundError
+from numbersprotocol_capture import Capture, NotFoundError
 
 
 def main() -> None:

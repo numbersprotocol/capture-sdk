@@ -120,7 +120,7 @@ class Capture:
     Main Capture SDK client.
 
     Example:
-        >>> from capture_sdk import Capture
+        >>> from numbersprotocol_capture import Capture
         >>> capture = Capture(token="your-api-token")
         >>> asset = capture.register("./photo.jpg", caption="My photo")
         >>> print(asset.nid)

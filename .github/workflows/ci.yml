@@ -93,7 +93,7 @@ jobs:
         run: ruff check .
 
       - name: Type check with mypy
-        run: mypy capture_sdk --ignore-missing-imports
+        run: mypy numbersprotocol_capture --ignore-missing-imports
 
       - name: Run tests
         run: pytest -v

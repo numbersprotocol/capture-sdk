@@ -16,7 +16,7 @@ capture-sdk/
 │   ├── package.json
 │   └── README.md
 ├── python/                # Python SDK
-│   ├── capture_sdk/
+│   ├── numbersprotocol_capture/
 │   │   ├── __init__.py    # Public exports
 │   │   ├── client.py      # Capture class
 │   │   ├── types.py       # Type definitions
@@ -66,11 +66,11 @@ python scripts/check-feature-parity.py
 #### Checklist for New Features
 
 - [ ] TypeScript implementation in `ts/src/`
-- [ ] Python implementation in `python/capture_sdk/`
+- [ ] Python implementation in `python/numbersprotocol_capture/`
 - [ ] TypeScript types in `ts/src/types.ts`
-- [ ] Python types in `python/capture_sdk/types.py`
+- [ ] Python types in `python/numbersprotocol_capture/types.py`
 - [ ] Export in `ts/src/index.ts`
-- [ ] Export in `python/capture_sdk/__init__.py`
+- [ ] Export in `python/numbersprotocol_capture/__init__.py`
 - [ ] Update both README files
 - [ ] Add tests for both implementations
 - [ ] Run feature parity check
@@ -131,7 +131,7 @@ Both SDKs must have equivalent error classes:
 1. **Create an Issue**: Describe the feature and its API design
 2. **Update Implementation Plan**: Add to `docs/PLAN.md`
 3. **Implement TypeScript**: Add to `ts/src/`
-4. **Implement Python**: Add to `python/capture_sdk/`
+4. **Implement Python**: Add to `python/numbersprotocol_capture/`
 5. **Add Tests**: Both `ts/tests/` and `python/tests/`
 6. **Update README**: Both `ts/README.md` and `python/README.md`
 7. **Check Parity**: `python scripts/check-feature-parity.py`
@@ -168,7 +168,7 @@ cd python
 pip install -e ".[dev]"
 pytest
 ruff check .
-mypy capture_sdk
+mypy numbersprotocol_capture
 ```
 
 ## Pull Request Requirements

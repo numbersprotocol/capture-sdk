@@ -103,7 +103,7 @@ def check_ts_features() -> None:
 
 def check_py_features() -> None:
     """Check which features are implemented in Python."""
-    py_dir = REPO_ROOT / "python" / "capture_sdk"
+    py_dir = REPO_ROOT / "python" / "numbersprotocol_capture"
 
     # Read all Python source files
     py_content = ""

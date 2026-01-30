@@ -27,7 +27,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).parent.parent
 TS_PACKAGE_JSON = REPO_ROOT / "ts" / "package.json"
 PY_PYPROJECT_TOML = REPO_ROOT / "python" / "pyproject.toml"
-PY_INIT_FILE = REPO_ROOT / "python" / "capture_sdk" / "__init__.py"
+PY_INIT_FILE = REPO_ROOT / "python" / "numbersprotocol_capture" / "__init__.py"
 
 
 def get_ts_version() -> str:
@@ -79,7 +79,7 @@ def set_py_version(version: str) -> None:
         flags=re.MULTILINE,
     )
     PY_INIT_FILE.write_text(init_content)
-    print(f"  Updated python/capture_sdk/__init__.py to {version}")
+    print(f"  Updated python/numbersprotocol_capture/__init__.py to {version}")
 
 
 def bump_version(current: str, bump_type: str) -> str:
