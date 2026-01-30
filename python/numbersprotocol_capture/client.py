@@ -654,7 +654,7 @@ class Capture:
         ):
             raise ValidationError("sample_count must be a positive integer")
 
-        form_data: dict[str, Any] = {"token": self._token}
+        form_data: dict[str, Any] = {}
 
         # Add input source
         files_data: dict[str, Any] | None = None
@@ -672,16 +672,21 @@ class Capture:
         if options.sample_count is not None:
             form_data["sample_count"] = str(options.sample_count)
 
+        # Verify Engine API requires token in Authorization header, not form data
+        headers = {"Authorization": f"token {self._token}"}
+
         try:
             if files_data:
                 response = self._client.post(
                     ASSET_SEARCH_API_URL,
+                    headers=headers,
                     data=form_data,
                     files=files_data,
                 )
             else:
                 response = self._client.post(
                     ASSET_SEARCH_API_URL,
+                    headers=headers,
                     data=form_data,
                 )
         except httpx.RequestError as e:

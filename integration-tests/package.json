@@ -8,7 +8,7 @@
     "test:py": "python test_published_sdk.py"
   },
   "dependencies": {
-    "@numbersprotocol/capture-sdk": "0.2.0",
+    "@numbersprotocol/capture-sdk": "^0.2.1",
     "sharp": "^0.33.0"
   },
   "devDependencies": {

@@ -494,7 +494,6 @@ export class Capture {
     }
 
     const formData = new FormData()
-    formData.append('token', this.token)
 
     // Add input source
     if (options.fileUrl) {
@@ -517,8 +516,12 @@ export class Capture {
       formData.append('sample_count', String(options.sampleCount))
     }
 
+    // Verify Engine API requires token in Authorization header, not form data
     const response = await fetch(ASSET_SEARCH_API_URL, {
       method: 'POST',
+      headers: {
+        Authorization: `token ${this.token}`,
+      },
       body: formData,
     })
 
