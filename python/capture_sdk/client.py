@@ -544,6 +544,7 @@ class Capture:
             "headline",
             "license",
             "mimeType",
+            "nftRecord",
         }
 
         extra = {k: v for k, v in merged.items() if k not in known_fields}
@@ -559,6 +560,7 @@ class Capture:
             headline=merged.get("headline"),
             license=merged.get("license"),
             mime_type=merged.get("mimeType"),
+            nft_record=merged.get("nftRecord"),
             extra=extra,
         )
 
