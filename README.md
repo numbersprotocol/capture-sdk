@@ -4,7 +4,7 @@ Official SDKs for [Numbers Protocol](https://numbersprotocol.io/) Capture API. R
 
 **Available in two languages:**
 - [TypeScript/JavaScript](./ts/) - For Node.js and browser
-- [Python](./python/) - For Python 3.10+
+- [Python](./python/) - For Python 3.13+
 
 ## Installation
 
@@ -65,7 +65,7 @@ tree = capture.get_asset_tree(asset.nid)
 ## Requirements
 
 - **TypeScript**: Node.js 18+ or modern browser
-- **Python**: Python 3.10+
+- **Python**: Python 3.13+
 - **API Token**: Get from [Capture Dashboard](https://docs.captureapp.xyz/)
 
 ## Repository Structure

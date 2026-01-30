@@ -8,7 +8,7 @@ version = "0.2.1"
 description = "Python SDK for Numbers Protocol Capture API"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.10"
+requires-python = ">=3.13"
 authors = [
     { name = "Numbers Protocol" }
 ]
@@ -26,10 +26,8 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
@@ -64,7 +62,7 @@ packages = ["numbersprotocol_capture"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py313"
 
 [tool.ruff.lint]
 select = [
@@ -84,7 +82,7 @@ ignore = [
 known-first-party = ["numbersprotocol_capture"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.13"
 strict = true
 warn_return_any = true
 warn_unused_ignores = true
