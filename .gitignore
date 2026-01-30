@@ -50,3 +50,7 @@ python/build/
 .ruff_cache/
 venv/
 .venv/
+
+# Integration tests (uses published packages, not local)
+integration-tests/node_modules/
+integration-tests/package-lock.json
