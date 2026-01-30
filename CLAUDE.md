@@ -68,7 +68,7 @@ Both SDKs expose the same API with language-appropriate naming:
 
 1. **Dual implementation required**: New features must be implemented in both languages
 2. **CI validates parity**: Feature parity and version sync are checked on every PR
-3. **Auto-release on main**: Commits to main automatically bump version and publish to npm/PyPI
+3. **Release via tags**: Push `v*` tag to trigger npm and PyPI publish
 
 ## Package Names
 
@@ -79,13 +79,18 @@ Both SDKs expose the same API with language-appropriate naming:
 
 ## Release Process
 
-Releases are automated when commits are pushed to the `main` branch:
+Releases are triggered by pushing a `v*` tag:
 
-1. **Auto-bump**: Version is automatically bumped based on commit message:
-   - `[major]` or `BREAKING CHANGE` → major version bump
-   - `[minor]` or `feat:` → minor version bump
-   - Default → patch version bump
+```bash
+# Bump version in both SDKs
+python scripts/sync-versions.py --bump patch   # or minor/major
 
-2. **Skip release**: Add `[skip release]` or `[no release]` to skip automatic release
+# Commit the version changes
+git add -A && git commit -m "chore: bump version to x.y.z"
 
-3. **Manual release**: Push a `v*` tag to trigger release manually
+# Create and push tag
+git tag v0.2.1
+git push origin main --tags
+```
+
+CI automatically publishes to npm and PyPI when the tag is pushed.
