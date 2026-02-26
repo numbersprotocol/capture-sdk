@@ -5,7 +5,7 @@ Verify Engine provides a web interface for searching and viewing
 digital asset provenance.
 """
 
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 VERIFY_BASE_URL = "https://verify.numbersprotocol.io"
 
@@ -24,7 +24,7 @@ def search_by_nid(nid: str) -> str:
         >>> url = search_by_nid("bafybei...")
         >>> # => "https://verify.numbersprotocol.io/search?nid=bafybei..."
     """
-    return f"{VERIFY_BASE_URL}/search?nid={nid}"
+    return f"{VERIFY_BASE_URL}/search?nid={quote(nid, safe='')}"
 
 
 def search_by_nft(token_id: str, contract: str) -> str:
@@ -60,7 +60,7 @@ def asset_profile(nid: str) -> str:
         >>> url = asset_profile("bafybei...")
         >>> # => "https://verify.numbersprotocol.io/asset-profile?nid=bafybei..."
     """
-    return f"{VERIFY_BASE_URL}/asset-profile?nid={nid}"
+    return f"{VERIFY_BASE_URL}/asset-profile?nid={quote(nid, safe='')}"
 
 
 def asset_profile_by_nft(token_id: str, contract: str) -> str:
