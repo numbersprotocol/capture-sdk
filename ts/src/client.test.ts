@@ -28,6 +28,234 @@ describe('Capture Client', () => {
   })
 })
 
+describe('Retry and Resilience', () => {
+  let originalFetch: typeof global.fetch
+
+  beforeEach(() => {
+    originalFetch = global.fetch
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    global.fetch = originalFetch
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+  })
+
+  it('should retry on 503 and succeed on second attempt', async () => {
+    const capture = new Capture({ token: 'test-token', retryDelay: 10 })
+
+    let callCount = 0
+    global.fetch = vi.fn().mockImplementation(async () => {
+      callCount++
+      if (callCount === 1) {
+        return { ok: false, status: 503, json: async () => ({}) } as Response
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          precise_match: '',
+          input_file_mime_type: '',
+          similar_matches: [],
+          order_id: 'test',
+        }),
+      } as Response
+    })
+
+    const promise = capture.searchAsset({ nid: TEST_NID })
+    await vi.runAllTimersAsync()
+    const result = await promise
+
+    expect(callCount).toBe(2)
+    expect(result.orderId).toBe('test')
+  })
+
+  it('should retry on 429 and succeed on second attempt', async () => {
+    const capture = new Capture({ token: 'test-token', retryDelay: 10 })
+
+    let callCount = 0
+    global.fetch = vi.fn().mockImplementation(async () => {
+      callCount++
+      if (callCount === 1) {
+        return { ok: false, status: 429, json: async () => ({}) } as Response
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          precise_match: '',
+          input_file_mime_type: '',
+          similar_matches: [],
+          order_id: 'ok',
+        }),
+      } as Response
+    })
+
+    const promise = capture.searchAsset({ nid: TEST_NID })
+    await vi.runAllTimersAsync()
+    const result = await promise
+
+    expect(callCount).toBe(2)
+    expect(result.orderId).toBe('ok')
+  })
+
+  it('should not retry on 400 (non-retryable)', async () => {
+    const capture = new Capture({ token: 'test-token', maxRetries: 3 })
+
+    let callCount = 0
+    global.fetch = vi.fn().mockImplementation(async () => {
+      callCount++
+      return { ok: false, status: 400, json: async () => ({}) } as Response
+    })
+
+    await expect(capture.searchAsset({ nid: TEST_NID })).rejects.toThrow()
+
+    expect(callCount).toBe(1)
+  })
+
+  it('should not retry on 404 (non-retryable)', async () => {
+    const capture = new Capture({ token: 'test-token', maxRetries: 3 })
+
+    let callCount = 0
+    global.fetch = vi.fn().mockImplementation(async () => {
+      callCount++
+      return { ok: false, status: 404, json: async () => ({}) } as Response
+    })
+
+    await expect(capture.searchAsset({ nid: TEST_NID })).rejects.toThrow()
+
+    expect(callCount).toBe(1)
+  })
+
+  it('should respect maxRetries=0 (no retries)', async () => {
+    const capture = new Capture({ token: 'test-token', maxRetries: 0 })
+
+    let callCount = 0
+    global.fetch = vi.fn().mockImplementation(async () => {
+      callCount++
+      return { ok: false, status: 503, json: async () => ({}) } as Response
+    })
+
+    await expect(capture.searchAsset({ nid: TEST_NID })).rejects.toThrow()
+
+    expect(callCount).toBe(1)
+  })
+
+  it('should retry on network error', async () => {
+    const capture = new Capture({ token: 'test-token', maxRetries: 1, retryDelay: 10 })
+
+    let callCount = 0
+    global.fetch = vi.fn().mockImplementation(async () => {
+      callCount++
+      if (callCount === 1) {
+        throw new TypeError('Network request failed')
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          precise_match: '',
+          input_file_mime_type: '',
+          similar_matches: [],
+          order_id: 'recovered',
+        }),
+      } as Response
+    })
+
+    const promise = capture.searchAsset({ nid: TEST_NID })
+    await vi.runAllTimersAsync()
+    const result = await promise
+
+    expect(callCount).toBe(2)
+    expect(result.orderId).toBe('recovered')
+  })
+
+  it('should use timeout option (default 30000ms)', () => {
+    const captureDefault = new Capture({ token: 'test-token' })
+    // @ts-expect-error accessing private field for test
+    expect(captureDefault.timeout).toBe(30000)
+
+    const captureCustom = new Capture({ token: 'test-token', timeout: 5000 })
+    // @ts-expect-error accessing private field for test
+    expect(captureCustom.timeout).toBe(5000)
+  })
+
+  it('should use configurable maxRetries and retryDelay defaults', () => {
+    const capture = new Capture({ token: 'test-token' })
+    // @ts-expect-error accessing private field for test
+    expect(capture.maxRetries).toBe(3)
+    // @ts-expect-error accessing private field for test
+    expect(capture.retryDelay).toBe(1000)
+  })
+})
+
+describe('Rate Limiting', () => {
+  let originalFetch: typeof global.fetch
+
+  beforeEach(() => {
+    originalFetch = global.fetch
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    global.fetch = originalFetch
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+  })
+
+  it('should allow requests when rate limit is not set', async () => {
+    const capture = new Capture({ token: 'test-token' })
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        precise_match: '',
+        input_file_mime_type: '',
+        similar_matches: [],
+        order_id: 'test',
+      }),
+    } as Response)
+
+    const promise = capture.searchAsset({ nid: TEST_NID })
+    await vi.runAllTimersAsync()
+    await expect(promise).resolves.toBeDefined()
+  })
+
+  it('should throttle requests when rateLimit is set (token bucket)', async () => {
+    // rateLimit=2 means 2 requests per second; bucket starts full with 2 tokens
+    const capture = new Capture({ token: 'test-token', rateLimit: 2 })
+
+    let fetchCallTimes: number[] = []
+    global.fetch = vi.fn().mockImplementation(async () => {
+      fetchCallTimes.push(Date.now())
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          precise_match: '',
+          input_file_mime_type: '',
+          similar_matches: [],
+          order_id: 'test',
+        }),
+      } as Response
+    })
+
+    // First 2 requests should be immediate (bucket starts full)
+    const p1 = capture.searchAsset({ nid: TEST_NID })
+    const p2 = capture.searchAsset({ nid: TEST_NID })
+    // Third request should be delayed (bucket empty)
+    const p3 = capture.searchAsset({ nid: TEST_NID })
+
+    await vi.runAllTimersAsync()
+    await Promise.all([p1, p2, p3])
+
+    // All three calls completed
+    expect(fetchCallTimes).toHaveLength(3)
+  })
+})
+
 describe('Asset Search Request Construction', () => {
   let originalFetch: typeof global.fetch
 

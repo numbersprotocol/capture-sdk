@@ -32,6 +32,18 @@ class CaptureOptions:
     base_url: str | None = None
     """Custom base URL (overrides testnet setting)."""
 
+    timeout: float = 30.0
+    """Request timeout in seconds (default: 30.0)."""
+
+    max_retries: int = 3
+    """Maximum number of retry attempts for transient failures (default: 3)."""
+
+    retry_delay: float = 1.0
+    """Initial delay in seconds for exponential backoff (default: 1.0)."""
+
+    rate_limit: int | None = None
+    """Maximum requests per second for client-side rate limiting (default: None)."""
+
 
 @dataclass
 class SignOptions:
