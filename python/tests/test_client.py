@@ -1,6 +1,8 @@
 """Tests for the Capture client."""
 
 import pytest
+import respx
+from httpx import Response as HttpxResponse
 
 from numbersprotocol_capture import Capture, ValidationError
 
@@ -76,3 +78,64 @@ class TestValidation:
         with Capture(token="test-token") as capture:
             with pytest.raises(ValidationError, match="nid is required"):
                 capture.update("", caption="test")
+
+
+class TestNftSearchSecurity:
+    """Tests verifying NFT search does not leak the auth token to third-party endpoint."""
+
+    @respx.mock
+    def test_search_nft_does_not_send_authorization_header(self) -> None:
+        """Verify token is NOT sent in Authorization header to the Pipedream endpoint."""
+        nft_search_url = "https://eofveg1f59hrbn.m.pipedream.net"
+        test_token = "my-secret-token"
+
+        route = respx.post(nft_search_url).mock(
+            return_value=HttpxResponse(200, json={"records": [], "order_id": "order_1"})
+        )
+
+        with Capture(token=test_token) as capture:
+            capture.search_nft("bafybeitest")
+
+        request = route.calls[0].request
+        assert "Authorization" not in request.headers
+
+
+class TestResponseSizeLimit:
+    """Tests for HTTP response body size limits."""
+
+    @respx.mock
+    def test_search_nft_raises_on_oversized_response(self) -> None:
+        """Verify NetworkError is raised when NFT search response exceeds size limit."""
+        from numbersprotocol_capture.errors import NetworkError
+        from numbersprotocol_capture.client import MAX_RESPONSE_SIZE
+
+        nft_search_url = "https://eofveg1f59hrbn.m.pipedream.net"
+        oversized_body = b"x" * (MAX_RESPONSE_SIZE + 1)
+
+        respx.post(nft_search_url).mock(
+            return_value=HttpxResponse(200, content=oversized_body)
+        )
+
+        with Capture(token="test-token") as capture:
+            with pytest.raises(NetworkError, match="Response body too large"):
+                capture.search_nft("bafybeitest")
+
+    @respx.mock
+    def test_search_nft_raises_on_large_content_length_header(self) -> None:
+        """Verify NetworkError is raised when Content-Length header exceeds size limit."""
+        from numbersprotocol_capture.errors import NetworkError
+        from numbersprotocol_capture.client import MAX_RESPONSE_SIZE
+
+        nft_search_url = "https://eofveg1f59hrbn.m.pipedream.net"
+
+        respx.post(nft_search_url).mock(
+            return_value=HttpxResponse(
+                200,
+                content=b'{"records":[]}',
+                headers={"content-length": str(MAX_RESPONSE_SIZE + 1)},
+            )
+        )
+
+        with Capture(token="test-token") as capture:
+            with pytest.raises(NetworkError, match="Response body too large"):
+                capture.search_nft("bafybeitest")

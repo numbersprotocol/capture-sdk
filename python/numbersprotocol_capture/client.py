@@ -13,7 +13,7 @@ from urllib.parse import urlencode
 import httpx
 
 from .crypto import create_integrity_proof, sha256, sign_integrity_proof
-from .errors import CaptureError, ValidationError, create_api_error
+from .errors import CaptureError, NetworkError, ValidationError, create_api_error
 from .types import (
     Asset,
     AssetSearchOptions,
@@ -35,6 +35,9 @@ HISTORY_API_URL = "https://e23hi68y55.execute-api.us-east-1.amazonaws.com/defaul
 MERGE_TREE_API_URL = "https://us-central1-numbers-protocol-api.cloudfunctions.net/get-full-asset-tree"
 ASSET_SEARCH_API_URL = "https://us-central1-numbers-protocol-api.cloudfunctions.net/asset-search"
 NFT_SEARCH_API_URL = "https://eofveg1f59hrbn.m.pipedream.net"
+
+# Maximum allowed response body size (10 MB)
+MAX_RESPONSE_SIZE = 10 * 1024 * 1024
 
 # Common MIME types by extension
 MIME_TYPES: dict[str, str] = {
@@ -168,6 +171,20 @@ class Capture:
         """Close the HTTP client."""
         self._client.close()
 
+    def _read_response_body(self, response: httpx.Response) -> bytes:
+        """Reads response body with a maximum size limit."""
+        content_length = response.headers.get("content-length")
+        if content_length and int(content_length) > MAX_RESPONSE_SIZE:
+            raise NetworkError("Response body too large")
+        chunks: list[bytes] = []
+        total_size = 0
+        for chunk in response.iter_bytes():
+            total_size += len(chunk)
+            if total_size > MAX_RESPONSE_SIZE:
+                raise NetworkError("Response body too large")
+            chunks.append(chunk)
+        return b"".join(chunks)
+
     def _request(
         self,
         method: str,
@@ -179,46 +196,36 @@ class Capture:
         nid: str | None = None,
     ) -> dict[str, Any]:
         """Makes an authenticated API request."""
-        headers = {"Authorization": f"token {self._token}"}
+        headers: dict[str, str] = {"Authorization": f"token {self._token}"}
+        if json_body:
+            headers["Content-Type"] = "application/json"
+
+        kwargs: dict[str, Any] = {"headers": headers}
+        if files:
+            kwargs["data"] = data
+            kwargs["files"] = files
+        elif json_body:
+            kwargs["json"] = json_body
+        elif data:
+            kwargs["data"] = data
 
         try:
-            if files:
-                response = self._client.request(
-                    method,
-                    url,
-                    headers=headers,
-                    data=data,
-                    files=files,
-                )
-            elif json_body:
-                headers["Content-Type"] = "application/json"
-                response = self._client.request(
-                    method,
-                    url,
-                    headers=headers,
-                    json=json_body,
-                )
-            else:
-                response = self._client.request(
-                    method,
-                    url,
-                    headers=headers,
-                    data=data,
-                )
+            with self._client.stream(method, url, **kwargs) as response:
+                body = self._read_response_body(response)
+
+                if not response.is_success:
+                    message = f"API request failed with status {response.status_code}"
+                    try:
+                        error_data = json.loads(body)
+                        message = error_data.get("detail") or error_data.get("message") or message
+                    except Exception:
+                        pass
+                    raise create_api_error(response.status_code, message, nid)
+
+                result: dict[str, Any] = json.loads(body)
+                return result
         except httpx.RequestError as e:
             raise create_api_error(0, f"Network error: {e}", nid) from e
-
-        if not response.is_success:
-            message = f"API request failed with status {response.status_code}"
-            try:
-                error_data = response.json()
-                message = error_data.get("detail") or error_data.get("message") or message
-            except Exception:
-                pass
-            raise create_api_error(response.status_code, message, nid)
-
-        result: dict[str, Any] = response.json()
-        return result
 
     def register(
         self,
@@ -678,36 +685,29 @@ class Capture:
         headers = {"Authorization": f"token {self._token}"}
 
         try:
+            request_kwargs: dict[str, Any] = {
+                "headers": headers,
+                "data": form_data,
+            }
             if files_data:
-                response = self._client.post(
-                    ASSET_SEARCH_API_URL,
-                    headers=headers,
-                    data=form_data,
-                    files=files_data,
-                )
-            else:
-                response = self._client.post(
-                    ASSET_SEARCH_API_URL,
-                    headers=headers,
-                    data=form_data,
-                )
+                request_kwargs["files"] = files_data
+            with self._client.stream("POST", ASSET_SEARCH_API_URL, **request_kwargs) as response:
+                body = self._read_response_body(response)
+                if not response.is_success:
+                    message = f"Asset search failed with status {response.status_code}"
+                    try:
+                        error_data = json.loads(body)
+                        message = (
+                            error_data.get("message")
+                            or error_data.get("error")
+                            or message
+                        )
+                    except Exception:
+                        pass
+                    raise create_api_error(response.status_code, message)
+                data = json.loads(body)
         except httpx.RequestError as e:
             raise create_api_error(0, f"Network error: {e}") from e
-
-        if not response.is_success:
-            message = f"Asset search failed with status {response.status_code}"
-            try:
-                error_data = response.json()
-                message = (
-                    error_data.get("message")
-                    or error_data.get("error")
-                    or message
-                )
-            except Exception:
-                pass
-            raise create_api_error(response.status_code, message)
-
-        data = response.json()
 
         # Map response to our type
         similar_matches = [
@@ -742,32 +742,31 @@ class Capture:
 
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"token {self._token}",
         }
 
         try:
-            response = self._client.post(
+            with self._client.stream(
+                "POST",
                 NFT_SEARCH_API_URL,
                 headers=headers,
                 json={"nid": nid},
-            )
+            ) as response:
+                body = self._read_response_body(response)
+                if not response.is_success:
+                    message = f"NFT search failed with status {response.status_code}"
+                    try:
+                        error_data = json.loads(body)
+                        message = (
+                            error_data.get("message")
+                            or error_data.get("error")
+                            or message
+                        )
+                    except Exception:
+                        pass
+                    raise create_api_error(response.status_code, message, nid)
+                data = json.loads(body)
         except httpx.RequestError as e:
             raise create_api_error(0, f"Network error: {e}", nid) from e
-
-        if not response.is_success:
-            message = f"NFT search failed with status {response.status_code}"
-            try:
-                error_data = response.json()
-                message = (
-                    error_data.get("message")
-                    or error_data.get("error")
-                    or message
-                )
-            except Exception:
-                pass
-            raise create_api_error(response.status_code, message, nid)
-
-        data = response.json()
 
         # Map response to our type
         records = [
