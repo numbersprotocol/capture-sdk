@@ -337,3 +337,41 @@ describe('Asset Search Validation', () => {
     ).rejects.toThrow('sampleCount must be a positive integer')
   })
 })
+
+describe('NID Format Validation', () => {
+  it('should reject nid with path traversal characters in get()', async () => {
+    const capture = new Capture({ token: 'test-token' })
+
+    await expect(capture.get('../../admin/users')).rejects.toThrow(
+      'nid contains invalid characters'
+    )
+  })
+
+  it('should reject nid with path traversal characters in update()', async () => {
+    const capture = new Capture({ token: 'test-token' })
+
+    await expect(capture.update('../../admin/users', { caption: 'x' })).rejects.toThrow(
+      'nid contains invalid characters'
+    )
+  })
+
+  it('should reject nid with URL-special characters', async () => {
+    const capture = new Capture({ token: 'test-token' })
+
+    await expect(capture.get('bafybei?inject=1')).rejects.toThrow(
+      'nid contains invalid characters'
+    )
+    await expect(capture.get('bafybei#fragment')).rejects.toThrow(
+      'nid contains invalid characters'
+    )
+  })
+
+  it('should accept valid alphanumeric nid (format validation only, not network)', async () => {
+    const capture = new Capture({ token: 'test-token' })
+
+    // This should not throw a ValidationError for format — it will fail at network level
+    await expect(capture.get(TEST_NID)).rejects.not.toThrow(
+      'nid contains invalid characters'
+    )
+  })
+})

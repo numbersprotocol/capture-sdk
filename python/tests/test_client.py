@@ -76,3 +76,36 @@ class TestValidation:
         with Capture(token="test-token") as capture:
             with pytest.raises(ValidationError, match="nid is required"):
                 capture.update("", caption="test")
+
+
+class TestNidFormatValidation:
+    """Tests for NID format validation (path traversal prevention)."""
+
+    def test_get_rejects_path_traversal_nid(self) -> None:
+        """Test that nid with path traversal characters is rejected."""
+        with Capture(token="test-token") as capture:
+            with pytest.raises(ValidationError, match="nid contains invalid characters"):
+                capture.get("../../admin/users")
+
+    def test_update_rejects_path_traversal_nid(self) -> None:
+        """Test that nid with path traversal characters is rejected in update."""
+        with Capture(token="test-token") as capture:
+            with pytest.raises(ValidationError, match="nid contains invalid characters"):
+                capture.update("../../admin/users", caption="x")
+
+    def test_get_rejects_nid_with_url_special_chars(self) -> None:
+        """Test that nid with URL-special characters is rejected."""
+        with Capture(token="test-token") as capture:
+            with pytest.raises(ValidationError, match="nid contains invalid characters"):
+                capture.get("bafybei?inject=1")
+            with pytest.raises(ValidationError, match="nid contains invalid characters"):
+                capture.get("bafybei#fragment")
+
+    def test_get_accepts_valid_alphanumeric_nid(self) -> None:
+        """Test that a valid alphanumeric NID passes format validation."""
+        valid_nid = "bafybeif3mhxhkhfwuszl2lybtai3hz3q6naqpfisd4q55mcc7opkmiv5ei"
+        with Capture(token="test-token") as capture:
+            # Should not raise ValidationError for format; will fail at network level
+            with pytest.raises(Exception) as exc_info:
+                capture.get(valid_nid)
+            assert "nid contains invalid characters" not in str(exc_info.value)
