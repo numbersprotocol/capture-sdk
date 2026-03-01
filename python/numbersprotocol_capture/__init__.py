@@ -17,6 +17,7 @@ from .crypto import sha256, verify_signature
 from .errors import (
     AuthenticationError,
     CaptureError,
+    ForbiddenError,
     InsufficientFundsError,
     NetworkError,
     NotFoundError,
@@ -63,6 +64,7 @@ __all__ = [
     # Errors
     "CaptureError",
     "AuthenticationError",
+    "ForbiddenError",
     "PermissionError",
     "NotFoundError",
     "InsufficientFundsError",

@@ -22,6 +22,7 @@ import {
 import { sha256, createIntegrityProof, signIntegrityProof } from './crypto.js'
 
 const DEFAULT_BASE_URL = 'https://api.numbersprotocol.io/api/v3'
+const DEFAULT_MAX_FILE_SIZE = 100 * 1024 * 1024 // 100 MB
 const HISTORY_API_URL =
   'https://e23hi68y55.execute-api.us-east-1.amazonaws.com/default/get-commits-storage-backend-jade-near'
 const MERGE_TREE_API_URL =
@@ -68,11 +69,54 @@ function isNodeEnvironment(): boolean {
 }
 
 /**
+ * Returns true if the hostname is localhost or a private/link-local IP address.
+ */
+function isPrivateOrLocalhost(hostname: string): boolean {
+  if (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1' ||
+    hostname === '0.0.0.0'
+  ) {
+    return true
+  }
+  // Private and link-local IPv4 ranges
+  const privateRanges = [
+    /^10\.\d+\.\d+\.\d+$/,
+    /^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/,
+    /^192\.168\.\d+\.\d+$/,
+    /^169\.254\.\d+\.\d+$/, // Link-local (e.g., AWS metadata service)
+  ]
+  return privateRanges.some((re) => re.test(hostname))
+}
+
+/**
+ * Validates that a custom baseUrl is safe to use (HTTPS, not localhost/private).
+ */
+function validateBaseUrl(url: string): void {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    throw new ValidationError(`Invalid baseUrl: ${url}`)
+  }
+  if (parsed.protocol !== 'https:') {
+    throw new ValidationError('baseUrl must use HTTPS protocol')
+  }
+  if (isPrivateOrLocalhost(parsed.hostname)) {
+    throw new ValidationError(
+      'baseUrl must not point to localhost or private network addresses'
+    )
+  }
+}
+
+/**
  * Normalizes various file input types to a common format.
  */
 async function normalizeFile(
   input: FileInput,
-  options?: RegisterOptions
+  options?: RegisterOptions,
+  maxFileSize?: number
 ): Promise<{ data: Uint8Array; filename: string; mimeType: string }> {
   // 1. String path (Node.js only)
   if (typeof input === 'string') {
@@ -83,6 +127,14 @@ async function normalizeFile(
     }
     const fs = await import('fs/promises')
     const path = await import('path')
+    if (maxFileSize && maxFileSize > 0) {
+      const stat = await fs.stat(input)
+      if (stat.size > maxFileSize) {
+        throw new ValidationError(
+          `File size (${stat.size} bytes) exceeds maximum allowed size (${maxFileSize} bytes)`
+        )
+      }
+    }
     const data = await fs.readFile(input)
     const filename = path.basename(input)
     const mimeType = getMimeType(filename)
@@ -91,6 +143,11 @@ async function normalizeFile(
 
   // 2. File object (Browser)
   if (typeof File !== 'undefined' && input instanceof File) {
+    if (maxFileSize && maxFileSize > 0 && input.size > maxFileSize) {
+      throw new ValidationError(
+        `File size (${input.size} bytes) exceeds maximum allowed size (${maxFileSize} bytes)`
+      )
+    }
     const data = new Uint8Array(await input.arrayBuffer())
     return { data, filename: input.name, mimeType: input.type || getMimeType(input.name) }
   }
@@ -99,6 +156,11 @@ async function normalizeFile(
   if (typeof Blob !== 'undefined' && input instanceof Blob) {
     if (!options?.filename) {
       throw new ValidationError('filename is required for Blob input')
+    }
+    if (maxFileSize && maxFileSize > 0 && input.size > maxFileSize) {
+      throw new ValidationError(
+        `File size (${input.size} bytes) exceeds maximum allowed size (${maxFileSize} bytes)`
+      )
     }
     const data = new Uint8Array(await input.arrayBuffer())
     const mimeType = input.type || getMimeType(options.filename)
@@ -112,8 +174,18 @@ async function normalizeFile(
   // Handle both Buffer and Uint8Array
   let data: Uint8Array
   if (input instanceof Uint8Array) {
+    if (maxFileSize && maxFileSize > 0 && input.byteLength > maxFileSize) {
+      throw new ValidationError(
+        `File size (${input.byteLength} bytes) exceeds maximum allowed size (${maxFileSize} bytes)`
+      )
+    }
     data = input
   } else if (typeof Buffer !== 'undefined' && Buffer.isBuffer(input)) {
+    if (maxFileSize && maxFileSize > 0 && input.byteLength > maxFileSize) {
+      throw new ValidationError(
+        `File size (${input.byteLength} bytes) exceeds maximum allowed size (${maxFileSize} bytes)`
+      )
+    }
     data = new Uint8Array(input.buffer, input.byteOffset, input.byteLength)
   } else {
     // This shouldn't happen with proper type checking, but handle it gracefully
@@ -142,6 +214,7 @@ export class Capture {
   private readonly token: string
   private readonly baseUrl: string
   private readonly testnet: boolean
+  private readonly maxFileSize: number
 
   constructor(options: CaptureOptions) {
     if (!options.token) {
@@ -149,7 +222,12 @@ export class Capture {
     }
     this.token = options.token
     this.testnet = options.testnet ?? false
+    if (options.baseUrl) {
+      validateBaseUrl(options.baseUrl)
+    }
     this.baseUrl = options.baseUrl ?? DEFAULT_BASE_URL
+    this.maxFileSize =
+      options.maxFileSize !== undefined ? options.maxFileSize : DEFAULT_MAX_FILE_SIZE
   }
 
   /**
@@ -222,7 +300,7 @@ export class Capture {
     }
 
     // Normalize file input
-    const { data, filename, mimeType } = await normalizeFile(file, options)
+    const { data, filename, mimeType } = await normalizeFile(file, options, this.maxFileSize)
 
     if (data.length === 0) {
       throw new ValidationError('file cannot be empty')
@@ -501,7 +579,7 @@ export class Capture {
     } else if (options.nid) {
       formData.append('nid', options.nid)
     } else if (options.file) {
-      const { data, filename, mimeType } = await normalizeFile(options.file)
+      const { data, filename, mimeType } = await normalizeFile(options.file, undefined, this.maxFileSize)
       const buffer = new ArrayBuffer(data.byteLength)
       new Uint8Array(buffer).set(data)
       const blob = new Blob([buffer], { type: mimeType })

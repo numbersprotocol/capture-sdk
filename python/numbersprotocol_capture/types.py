@@ -30,7 +30,10 @@ class CaptureOptions:
     """Use testnet environment (default: False)."""
 
     base_url: str | None = None
-    """Custom base URL (overrides testnet setting)."""
+    """Custom base URL (overrides testnet setting). Must use HTTPS and must not point to localhost or private network addresses."""
+
+    max_file_size: int | None = None
+    """Maximum file size in bytes for asset registration (default: 100 MB). Set to 0 to disable."""
 
 
 @dataclass
