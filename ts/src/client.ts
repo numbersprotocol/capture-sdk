@@ -22,6 +22,20 @@ import {
 import { sha256, createIntegrityProof, signIntegrityProof } from './crypto.js'
 
 const DEFAULT_BASE_URL = 'https://api.numbersprotocol.io/api/v3'
+
+/** Valid NID characters: alphanumeric only (matches IPFS CID format) */
+const NID_PATTERN = /^[a-zA-Z0-9]+$/
+
+/**
+ * Validates that a NID contains only safe alphanumeric characters.
+ * @internal
+ */
+function validateNidFormat(nid: string): void {
+  if (!NID_PATTERN.test(nid)) {
+    throw new ValidationError('nid contains invalid characters')
+  }
+}
+
 const HISTORY_API_URL =
   'https://e23hi68y55.execute-api.us-east-1.amazonaws.com/default/get-commits-storage-backend-jade-near'
 const MERGE_TREE_API_URL =
@@ -286,6 +300,7 @@ export class Capture {
     if (!nid) {
       throw new ValidationError('nid is required')
     }
+    validateNidFormat(nid)
 
     if (options.headline && options.headline.length > 25) {
       throw new ValidationError('headline must be 25 characters or less')
@@ -308,7 +323,8 @@ export class Capture {
 
     const response = await this.request<AssetApiResponse>(
       'PATCH',
-      `${this.baseUrl}/assets/${nid}/`,
+      // encodeURIComponent provides defense-in-depth alongside format validation
+      `${this.baseUrl}/assets/${encodeURIComponent(nid)}/`,
       formData,
       nid
     )
@@ -333,10 +349,12 @@ export class Capture {
     if (!nid) {
       throw new ValidationError('nid is required')
     }
+    validateNidFormat(nid)
 
     const response = await this.request<AssetApiResponse>(
       'GET',
-      `${this.baseUrl}/assets/${nid}/`,
+      // encodeURIComponent provides defense-in-depth alongside format validation
+      `${this.baseUrl}/assets/${encodeURIComponent(nid)}/`,
       undefined,
       nid
     )
