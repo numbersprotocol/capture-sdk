@@ -12,7 +12,7 @@ Example:
 """
 
 from . import verify
-from .client import Capture
+from .client import AsyncCapture, Capture
 from .crypto import sha256, verify_signature
 from .errors import (
     AuthenticationError,
@@ -43,8 +43,9 @@ from .types import (
 __version__ = "0.2.1"
 
 __all__ = [
-    # Main client
+    # Main clients
     "Capture",
+    "AsyncCapture",
     # Types
     "FileInput",
     "CaptureOptions",
