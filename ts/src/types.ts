@@ -18,6 +18,10 @@ export interface CaptureOptions {
   testnet?: boolean
   /** Custom base URL (overrides testnet setting) */
   baseUrl?: string
+  /** AbortSignal to cancel in-flight requests */
+  signal?: AbortSignal
+  /** Custom fetch implementation (e.g. for proxies or custom TLS) */
+  fetchImplementation?: typeof fetch
 }
 
 /**

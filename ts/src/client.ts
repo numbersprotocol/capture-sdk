@@ -142,6 +142,8 @@ export class Capture {
   private readonly token: string
   private readonly baseUrl: string
   private readonly testnet: boolean
+  private readonly signal?: AbortSignal
+  private readonly fetchImplementation?: typeof fetch
 
   constructor(options: CaptureOptions) {
     if (!options.token) {
@@ -150,6 +152,8 @@ export class Capture {
     this.token = options.token
     this.testnet = options.testnet ?? false
     this.baseUrl = options.baseUrl ?? DEFAULT_BASE_URL
+    this.signal = options.signal
+    this.fetchImplementation = options.fetchImplementation
   }
 
   /**
@@ -158,7 +162,7 @@ export class Capture {
   private async request<T>(
     method: string,
     url: string,
-    body?: FormData | Record<string, unknown>,
+    body?: FormData | Record<string, unknown> | unknown[],
     nid?: string
   ): Promise<T> {
     const headers: Record<string, string> = {
@@ -173,10 +177,12 @@ export class Capture {
       requestBody = JSON.stringify(body)
     }
 
-    const response = await fetch(url, {
+    const fetchFn = this.fetchImplementation ?? fetch
+    const response = await fetchFn(url, {
       method,
       headers,
       body: requestBody,
+      signal: this.signal,
     })
 
     if (!response.ok) {
@@ -371,19 +377,7 @@ export class Capture {
       url.searchParams.set('testnet', 'true')
     }
 
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `token ${this.token}`,
-      },
-    })
-
-    if (!response.ok) {
-      throw createApiError(response.status, 'Failed to fetch asset history', nid)
-    }
-
-    const data = (await response.json()) as HistoryApiResponse
+    const data = await this.request<HistoryApiResponse>('GET', url.toString(), undefined, nid)
 
     return data.commits.map((c) => ({
       assetTreeCid: c.assetTreeCid,
@@ -427,20 +421,12 @@ export class Capture {
       timestampCreated: c.timestamp,
     }))
 
-    const response = await fetch(MERGE_TREE_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `token ${this.token}`,
-      },
-      body: JSON.stringify(commitData),
-    })
-
-    if (!response.ok) {
-      throw createApiError(response.status, 'Failed to merge asset trees', nid)
-    }
-
-    const data = await response.json()
+    const data = await this.request<Record<string, unknown>>(
+      'POST',
+      MERGE_TREE_API_URL,
+      commitData,
+      nid
+    )
 
     // The API returns { mergedAssetTree: {...}, assetTrees: [...] }
     // We return the merged tree
@@ -517,26 +503,12 @@ export class Capture {
     }
 
     // Verify Engine API requires token in Authorization header, not form data
-    const response = await fetch(ASSET_SEARCH_API_URL, {
-      method: 'POST',
-      headers: {
-        Authorization: `token ${this.token}`,
-      },
-      body: formData,
-    })
-
-    if (!response.ok) {
-      let message = `Asset search failed with status ${response.status}`
-      try {
-        const errorData = await response.json()
-        message = errorData.message || errorData.error || message
-      } catch {
-        // Use default message
-      }
-      throw createApiError(response.status, message)
-    }
-
-    const data = await response.json()
+    const data = await this.request<{
+      precise_match?: string
+      input_file_mime_type?: string
+      similar_matches?: Array<{ nid: string; distance: number }>
+      order_id?: string
+    }>('POST', ASSET_SEARCH_API_URL, formData)
 
     // Map response to our type
     const similarMatches: SimilarMatch[] = (data.similar_matches || []).map(
@@ -573,27 +545,15 @@ export class Capture {
       throw new ValidationError('nid is required for NFT search')
     }
 
-    const response = await fetch(NFT_SEARCH_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `token ${this.token}`,
-      },
-      body: JSON.stringify({ nid }),
-    })
-
-    if (!response.ok) {
-      let message = `NFT search failed with status ${response.status}`
-      try {
-        const errorData = await response.json()
-        message = errorData.message || errorData.error || message
-      } catch {
-        // Use default message
-      }
-      throw createApiError(response.status, message, nid)
-    }
-
-    const data = await response.json()
+    const data = await this.request<{
+      records?: Array<{
+        token_id: string
+        contract: string
+        network: string
+        owner?: string
+      }>
+      order_id?: string
+    }>('POST', NFT_SEARCH_API_URL, { nid }, nid)
 
     // Map response to our type
     const records: NftRecord[] = (data.records || []).map(
