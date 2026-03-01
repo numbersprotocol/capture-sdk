@@ -16,8 +16,10 @@ export interface CaptureOptions {
   token: string
   /** Use testnet environment (default: false) */
   testnet?: boolean
-  /** Custom base URL (overrides testnet setting) */
+  /** Custom base URL (overrides testnet setting). Must use HTTPS and must not point to localhost or private network addresses. */
   baseUrl?: string
+  /** Maximum file size in bytes for asset registration (default: 100 MB). Set to 0 to disable. */
+  maxFileSize?: number
 }
 
 /**

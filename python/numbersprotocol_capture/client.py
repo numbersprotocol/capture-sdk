@@ -6,9 +6,10 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import re
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 import httpx
 
@@ -31,6 +32,7 @@ from .types import (
 )
 
 DEFAULT_BASE_URL = "https://api.numbersprotocol.io/api/v3"
+DEFAULT_MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB
 HISTORY_API_URL = "https://e23hi68y55.execute-api.us-east-1.amazonaws.com/default/get-commits-storage-backend-jade-near"
 MERGE_TREE_API_URL = "https://us-central1-numbers-protocol-api.cloudfunctions.net/get-full-asset-tree"
 ASSET_SEARCH_API_URL = "https://us-central1-numbers-protocol-api.cloudfunctions.net/asset-search"
@@ -65,9 +67,38 @@ def _get_mime_type(filename: str) -> str:
     return mime_type or "application/octet-stream"
 
 
+def _is_private_or_localhost(hostname: str) -> bool:
+    """Returns True if the hostname is localhost or a private/link-local address."""
+    if hostname in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
+        return True
+    private_ranges = [
+        r"^10\.\d+\.\d+\.\d+$",
+        r"^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$",
+        r"^192\.168\.\d+\.\d+$",
+        r"^169\.254\.\d+\.\d+$",  # Link-local (e.g., AWS metadata service)
+    ]
+    return any(re.match(pattern, hostname) for pattern in private_ranges)
+
+
+def _validate_base_url(url: str) -> None:
+    """Validates that a custom base_url is safe (HTTPS, not localhost/private)."""
+    try:
+        parsed = urlparse(url)
+    except Exception as e:
+        raise ValidationError(f"Invalid base_url: {url}") from e
+    if parsed.scheme != "https":
+        raise ValidationError("base_url must use HTTPS protocol")
+    hostname = parsed.hostname or ""
+    if _is_private_or_localhost(hostname):
+        raise ValidationError(
+            "base_url must not point to localhost or private network addresses"
+        )
+
+
 def _normalize_file(
     file_input: FileInput,
     options: RegisterOptions | None = None,
+    max_file_size: int | None = None,
 ) -> tuple[bytes, str, str]:
     """
     Normalizes various file input types to a common format.
@@ -80,6 +111,13 @@ def _normalize_file(
         path = Path(file_input)
         if not path.exists():
             raise ValidationError(f"File not found: {file_input}")
+        if max_file_size and max_file_size > 0:
+            file_size = path.stat().st_size
+            if file_size > max_file_size:
+                raise ValidationError(
+                    f"File size ({file_size} bytes) exceeds maximum allowed size "
+                    f"({max_file_size} bytes)"
+                )
         data = path.read_bytes()
         filename = path.name
         mime_type = _get_mime_type(filename)
@@ -89,6 +127,13 @@ def _normalize_file(
     if isinstance(file_input, Path):
         if not file_input.exists():
             raise ValidationError(f"File not found: {file_input}")
+        if max_file_size and max_file_size > 0:
+            file_size = file_input.stat().st_size
+            if file_size > max_file_size:
+                raise ValidationError(
+                    f"File size ({file_size} bytes) exceeds maximum allowed size "
+                    f"({max_file_size} bytes)"
+                )
         data = file_input.read_bytes()
         filename = file_input.name
         mime_type = _get_mime_type(filename)
@@ -98,6 +143,11 @@ def _normalize_file(
     if isinstance(file_input, bytes | bytearray):
         if not options or not options.filename:
             raise ValidationError("filename is required for binary input")
+        if max_file_size and max_file_size > 0 and len(file_input) > max_file_size:
+            raise ValidationError(
+                f"File size ({len(file_input)} bytes) exceeds maximum allowed size "
+                f"({max_file_size} bytes)"
+            )
         data = bytes(file_input)
         filename = options.filename
         mime_type = _get_mime_type(filename)
@@ -134,6 +184,7 @@ class Capture:
         *,
         testnet: bool = False,
         base_url: str | None = None,
+        max_file_size: int | None = None,
         options: CaptureOptions | None = None,
     ):
         """
@@ -142,20 +193,27 @@ class Capture:
         Args:
             token: Authentication token for API access.
             testnet: Use testnet environment (default: False).
-            base_url: Custom base URL (overrides testnet setting).
+            base_url: Custom base URL (overrides testnet setting). Must use HTTPS
+                and must not point to localhost or private network addresses.
+            max_file_size: Maximum file size in bytes (default: 100 MB). Set to 0 to disable.
             options: CaptureOptions object (alternative to individual args).
         """
         if options:
             token = options.token
             testnet = options.testnet
             base_url = options.base_url
+            max_file_size = options.max_file_size
 
         if not token:
             raise ValidationError("token is required")
 
+        if base_url:
+            _validate_base_url(base_url)
+
         self._token = token
         self._testnet = testnet
         self._base_url = base_url or DEFAULT_BASE_URL
+        self._max_file_size = max_file_size if max_file_size is not None else DEFAULT_MAX_FILE_SIZE
         self._client = httpx.Client(timeout=30.0)
 
     def __enter__(self) -> Capture:
@@ -281,7 +339,7 @@ class Capture:
             raise ValidationError("headline must be 25 characters or less")
 
         # Normalize file input
-        data, file_name, mime_type = _normalize_file(file, options)
+        data, file_name, mime_type = _normalize_file(file, options, self._max_file_size)
 
         if len(data) == 0:
             raise ValidationError("file cannot be empty")
@@ -665,7 +723,7 @@ class Capture:
         elif options.nid:
             form_data["nid"] = options.nid
         elif options.file:
-            data, filename, mime_type = _normalize_file(options.file)
+            data, filename, mime_type = _normalize_file(options.file, max_file_size=self._max_file_size)
             files_data = {"file": (filename, data, mime_type)}
 
         # Add optional parameters

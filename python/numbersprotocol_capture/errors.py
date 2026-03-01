@@ -32,11 +32,16 @@ class AuthenticationError(CaptureError):
         super().__init__(message, "AUTHENTICATION_ERROR", 401)
 
 
-class PermissionError(CaptureError):
+class ForbiddenError(CaptureError):
     """Thrown when user lacks permission for the requested operation."""
 
     def __init__(self, message: str = "Insufficient permissions for this operation"):
         super().__init__(message, "PERMISSION_ERROR", 403)
+
+
+# Backwards-compatibility alias. New code should use ForbiddenError.
+# This alias avoids shadowing Python's built-in PermissionError (an OSError subclass).
+PermissionError = ForbiddenError
 
 
 class NotFoundError(CaptureError):
@@ -82,7 +87,7 @@ def create_api_error(
     elif status_code == 401:
         return AuthenticationError(message)
     elif status_code == 403:
-        return PermissionError(message)
+        return ForbiddenError(message)
     elif status_code == 404:
         return NotFoundError(nid)
     else:

@@ -48,11 +48,48 @@ jobs:
 
           echo "Version $VERSION verified in both SDKs"
 
+  # Run tests before publishing
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: ts/package-lock.json
+
+      - name: Install TypeScript dependencies
+        run: npm ci
+        working-directory: ts
+
+      - name: Run TypeScript tests
+        run: npm test
+        working-directory: ts
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install Python dependencies
+        run: pip install -e ".[dev]"
+        working-directory: python
+
+      - name: Run Python tests
+        run: pytest -v
+        working-directory: python
+
   # Publish TypeScript to npm
   publish-npm:
     name: Publish to npm
-    needs: validate
+    needs: [validate, test]
     runs-on: ubuntu-latest
+    outputs:
+      checksum: ${{ steps.checksum.outputs.value }}
     defaults:
       run:
         working-directory: ts
@@ -73,6 +110,14 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Compute package checksum
+        id: checksum
+        run: |
+          npm pack
+          CHECKSUM=$(sha256sum *.tgz | awk '{print $1}')
+          echo "value=$CHECKSUM" >> $GITHUB_OUTPUT
+          echo "npm package SHA256: $CHECKSUM"
+
       - name: Publish to npm
         run: npm publish --access public
         env:
@@ -81,8 +126,10 @@ jobs:
   # Publish Python to PyPI
   publish-pypi:
     name: Publish to PyPI
-    needs: validate
+    needs: [validate, test]
     runs-on: ubuntu-latest
+    outputs:
+      checksum: ${{ steps.checksum.outputs.value }}
     defaults:
       run:
         working-directory: python
@@ -102,6 +149,13 @@ jobs:
       - name: Build package
         run: python -m build
 
+      - name: Compute package checksums
+        id: checksum
+        run: |
+          CHECKSUM=$(sha256sum dist/* | awk '{print $1 " " $2}' | tr '\n' '; ')
+          echo "value=$CHECKSUM" >> $GITHUB_OUTPUT
+          echo "Python package SHA256: $CHECKSUM"
+
       - name: Publish to PyPI
         env:
           TWINE_USERNAME: __token__
@@ -119,7 +173,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        # Pinned to commit SHA for supply-chain security (tag: v1)
+        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844
         with:
           name: v${{ needs.validate.outputs.version }}
           body: |
@@ -137,7 +192,12 @@ jobs:
             pip install numbersprotocol-capture-sdk==${{ needs.validate.outputs.version }}
             ```
 
+            ### Artifact Checksums (SHA256)
+            - npm: `${{ needs.publish-npm.outputs.checksum }}`
+            - Python: `${{ needs.publish-pypi.outputs.checksum }}`
+
             ### Links
             - [npm package](https://www.npmjs.com/package/@numbersprotocol/capture-sdk)
             - [PyPI package](https://pypi.org/project/numbersprotocol-capture-sdk/)
           generate_release_notes: true
+
