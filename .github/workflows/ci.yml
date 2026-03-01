@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   # Check version synchronization
   version-check:
@@ -17,7 +20,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.14"
+          python-version: "3.12"
 
       - name: Check version sync
         run: python scripts/sync-versions.py --check
@@ -32,15 +35,18 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.14"
+          python-version: "3.12"
 
       - name: Check feature parity
         run: python scripts/check-feature-parity.py
 
   # TypeScript CI
   typescript:
-    name: TypeScript
+    name: TypeScript (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: ["18", "20", "22"]
     defaults:
       run:
         working-directory: ts
@@ -50,7 +56,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: ${{ matrix.node-version }}
           cache: "npm"
           cache-dependency-path: ts/package-lock.json
 
@@ -72,7 +78,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.14"]
+        python-version: ["3.11", "3.12", "3.13"]
     defaults:
       run:
         working-directory: python
@@ -96,7 +102,7 @@ jobs:
         run: mypy numbersprotocol_capture --ignore-missing-imports
 
       - name: Run tests
-        run: pytest -v
+        run: pytest -v --cov-fail-under=75
 
   # All checks passed
   ci-success:

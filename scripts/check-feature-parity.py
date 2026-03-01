@@ -10,6 +10,7 @@ Usage:
 """
 
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -140,8 +141,8 @@ def check_py_features() -> None:
                 feature.py_implemented = True
 
 
-def print_report() -> None:
-    """Print feature parity report."""
+def print_report() -> bool:
+    """Print feature parity report. Returns True if full parity achieved."""
     print("=" * 60)
     print("Feature Parity Report")
     print("=" * 60)
@@ -204,15 +205,19 @@ def print_report() -> None:
 
     if parity_count == total_features:
         print("\n✓ Full feature parity achieved!")
+        return True
     else:
         missing = total_features - parity_count
         print(f"\n✗ {missing} feature(s) missing parity")
+        return False
 
 
 def main() -> None:
     check_ts_features()
     check_py_features()
-    print_report()
+    all_parity = print_report()
+    if not all_parity:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
