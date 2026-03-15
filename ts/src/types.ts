@@ -18,6 +18,14 @@ export interface CaptureOptions {
   testnet?: boolean
   /** Custom base URL (overrides testnet setting) */
   baseUrl?: string
+  /** Override URL for history API endpoint */
+  historyApiUrl?: string
+  /** Override URL for merge-tree API endpoint */
+  mergeTreeApiUrl?: string
+  /** Override URL for asset search API endpoint */
+  assetSearchApiUrl?: string
+  /** Override URL for NFT search API endpoint */
+  nftSearchApiUrl?: string
 }
 
 /**
@@ -86,7 +94,10 @@ export interface Commit {
   author: string
   /** Address that made this commit */
   committer: string
-  /** Unix timestamp of the commit */
+  /**
+   * Unix timestamp of the commit in **seconds**.
+   * Note: `IntegrityProof.created_at` uses milliseconds; this field uses seconds.
+   */
   timestamp: number
   /** Description of the action */
   action: string
@@ -140,8 +151,8 @@ export interface AssetTree {
   miningPreference?: string
   /** AI/algorithm information for generated content */
   generatedBy?: string
-  /** Additional fields from commits */
-  [key: string]: unknown
+  /** Additional fields from commits not covered by the named properties above */
+  extra?: Record<string, unknown>
 }
 
 /**
@@ -151,6 +162,10 @@ export interface AssetTree {
 export interface IntegrityProof {
   proof_hash: string
   asset_mime_type: string
+  /**
+   * Creation timestamp in **milliseconds** since Unix epoch.
+   * Note: `Commit.timestamp` from the API uses seconds; this field uses milliseconds.
+   */
   created_at: number
 }
 

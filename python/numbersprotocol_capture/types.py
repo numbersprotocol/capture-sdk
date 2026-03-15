@@ -32,6 +32,18 @@ class CaptureOptions:
     base_url: str | None = None
     """Custom base URL (overrides testnet setting)."""
 
+    history_api_url: str | None = None
+    """Override URL for the history API endpoint."""
+
+    merge_tree_api_url: str | None = None
+    """Override URL for the merge-tree API endpoint."""
+
+    asset_search_api_url: str | None = None
+    """Override URL for the asset search API endpoint."""
+
+    nft_search_api_url: str | None = None
+    """Override URL for the NFT search API endpoint."""
+
 
 @dataclass
 class SignOptions:
@@ -115,7 +127,10 @@ class Commit:
     """Address that made this commit."""
 
     timestamp: int
-    """Unix timestamp of the commit."""
+    """Unix timestamp of the commit in **seconds**.
+
+    Note: ``IntegrityProof.created_at`` uses milliseconds; this field uses seconds.
+    """
 
     action: str
     """Description of the action."""
@@ -203,6 +218,10 @@ class IntegrityProof:
     proof_hash: str
     asset_mime_type: str
     created_at: int
+    """Creation timestamp in **milliseconds** since Unix epoch.
+
+    Note: ``Commit.timestamp`` from the API uses seconds; this field uses milliseconds.
+    """
 
 
 @dataclass
