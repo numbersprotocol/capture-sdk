@@ -130,6 +130,7 @@ class Commit:
     """Unix timestamp of the commit in **seconds**.
 
     Note: ``IntegrityProof.created_at`` uses milliseconds; this field uses seconds.
+    To convert to a ``datetime`` object: ``datetime.fromtimestamp(commit.timestamp)``.
     """
 
     action: str

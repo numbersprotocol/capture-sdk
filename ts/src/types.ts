@@ -151,7 +151,9 @@ export interface AssetTree {
   miningPreference?: string
   /** AI/algorithm information for generated content */
   generatedBy?: string
-  /** Additional fields from commits not covered by the named properties above */
+  /** Additional fields from commits not covered by the named properties above.
+   * When the API returns keys that do not map to a known field, they are
+   * collected here rather than being silently discarded. */
   extra?: Record<string, unknown>
 }
 
