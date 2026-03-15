@@ -31,6 +31,14 @@ export function createIntegrityProof(
 }
 
 /**
+ * Serializes an integrity proof to a canonical JSON string with sorted keys.
+ * Used for both hashing and form submission to ensure consistent output.
+ */
+export function serializeProof(proof: IntegrityProof): string {
+  return JSON.stringify(proof, Object.keys(proof).sort())
+}
+
+/**
  * Signs an integrity proof using EIP-191 standard.
  * Returns the signature data required for asset registration.
  */
@@ -40,8 +48,8 @@ export async function signIntegrityProof(
 ): Promise<AssetSignature> {
   const wallet = new Wallet(privateKey)
 
-  // Compute integrity hash of the signed metadata JSON
-  const proofJson = JSON.stringify(proof)
+  // Compute integrity hash of the signed metadata JSON (sorted keys for cross-SDK consistency)
+  const proofJson = serializeProof(proof)
   const proofBytes = new TextEncoder().encode(proofJson)
   const integritySha = await sha256(proofBytes)
 
