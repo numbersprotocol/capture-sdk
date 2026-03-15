@@ -248,11 +248,11 @@ export class Capture {
     const publicAccess = options?.publicAccess ?? true
     formData.append('public_access', String(publicAccess))
 
-    // Handle signing if private key provided
-    if (options?.sign?.privateKey) {
+    // Handle signing if sign options provided (privateKey or custom signer)
+    if (options?.sign && (options.sign.privateKey || options.sign.signer)) {
       const proofHash = await sha256(data)
       const proof = createIntegrityProof(proofHash, mimeType)
-      const signature = await signIntegrityProof(proof, options.sign.privateKey)
+      const signature = await signIntegrityProof(proof, options.sign)
 
       formData.append('signed_metadata', JSON.stringify(proof))
       formData.append('signature', JSON.stringify([signature]))
@@ -303,7 +303,13 @@ export class Capture {
       formData.append('commit_message', options.commitMessage)
     }
     if (options.customMetadata) {
-      formData.append('nit_commit_custom', JSON.stringify(options.customMetadata))
+      const serialized = JSON.stringify(options.customMetadata)
+      if (new TextEncoder().encode(serialized).length > 10 * 1024) {
+        throw new ValidationError(
+          'customMetadata must not exceed 10 KB when serialized'
+        )
+      }
+      formData.append('nit_commit_custom', serialized)
     }
 
     const response = await this.request<AssetApiResponse>(
@@ -497,6 +503,12 @@ export class Capture {
 
     // Add input source
     if (options.fileUrl) {
+      const parsed = new URL(options.fileUrl)
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        throw new ValidationError(
+          'fileUrl must use http: or https: scheme'
+        )
+      }
       formData.append('url', options.fileUrl)
     } else if (options.nid) {
       formData.append('nid', options.nid)

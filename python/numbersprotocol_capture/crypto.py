@@ -4,12 +4,19 @@ Cryptographic utilities for the Capture SDK.
 
 import hashlib
 import json
+import logging
 import time
+from typing import TYPE_CHECKING
 
 from eth_account import Account
 from eth_account.messages import encode_defunct
 
 from .types import AssetSignature, IntegrityProof
+
+if TYPE_CHECKING:
+    from .types import SignOptions
+
+logger = logging.getLogger(__name__)
 
 
 def sha256(data: bytes | bytearray) -> str:
@@ -45,22 +52,27 @@ def create_integrity_proof(proof_hash: str, mime_type: str) -> IntegrityProof:
     )
 
 
-def sign_integrity_proof(proof: IntegrityProof, private_key: str) -> AssetSignature:
+def sign_integrity_proof(
+    proof: IntegrityProof,
+    private_key_or_options: "str | SignOptions",
+) -> AssetSignature:
     """
     Signs an integrity proof using EIP-191 standard.
 
+    Accepts either a raw private key string (legacy) or a :class:`SignOptions`
+    object.  When a ``SignOptions.signer`` callback is provided the private key
+    never enters this process, reducing the window of key exposure in memory.
+
     Args:
         proof: IntegrityProof object to sign.
-        private_key: Ethereum private key (hex string with or without 0x prefix).
+        private_key_or_options: Ethereum private key string **or** a
+            :class:`~numbersprotocol_capture.types.SignOptions` instance with
+            either ``private_key`` or ``signer`` + ``address``.
 
     Returns:
         AssetSignature containing the signature data.
     """
-    # Ensure private key has 0x prefix
-    if not private_key.startswith("0x"):
-        private_key = f"0x{private_key}"
-
-    account = Account.from_key(private_key)
+    from .types import SignOptions as _SignOptions
 
     # Compute integrity hash of the signed metadata JSON
     proof_dict = {
@@ -71,15 +83,45 @@ def sign_integrity_proof(proof: IntegrityProof, private_key: str) -> AssetSignat
     proof_json = json.dumps(proof_dict, separators=(",", ":"))
     integrity_sha = sha256(proof_json.encode("utf-8"))
 
-    # Sign the integrity hash using EIP-191
-    message = encode_defunct(text=integrity_sha)
-    signed = account.sign_message(message)
+    if isinstance(private_key_or_options, str):
+        # Legacy path: raw private key string
+        pk = private_key_or_options
+        if not pk.startswith("0x"):
+            pk = f"0x{pk}"
+        account = Account.from_key(pk)
+        message = encode_defunct(text=integrity_sha)
+        signed = account.sign_message(message)
+        sig_hex: str = signed.signature.hex()
+        public_key: str = account.address
+    elif isinstance(private_key_or_options, _SignOptions):
+        opts = private_key_or_options
+        if opts.signer is not None and opts.address is not None:
+            # Custom signer path – private key stays out of this process
+            sig_hex = opts.signer(integrity_sha)
+            public_key = opts.address
+        elif opts.private_key is not None:
+            pk = opts.private_key
+            if not pk.startswith("0x"):
+                pk = f"0x{pk}"
+            account = Account.from_key(pk)
+            message = encode_defunct(text=integrity_sha)
+            signed = account.sign_message(message)
+            sig_hex = signed.signature.hex()
+            public_key = account.address
+        else:
+            raise ValueError(
+                "sign_integrity_proof: provide either private_key or both signer and address"
+            )
+    else:
+        raise TypeError(
+            f"sign_integrity_proof: unexpected argument type {type(private_key_or_options)}"
+        )
 
     return AssetSignature(
         proof_hash=proof.proof_hash,
         provider="capture-sdk",
-        signature=signed.signature.hex(),
-        public_key=account.address,
+        signature=sig_hex,
+        public_key=public_key,
         integrity_sha=integrity_sha,
     )
 
@@ -104,5 +146,6 @@ def verify_signature(message: str, signature: str, expected_address: str) -> boo
         msg = encode_defunct(text=message)
         recovered: str = Account.recover_message(msg, signature=signature)
         return recovered.lower() == expected_address.lower()
-    except Exception:
+    except Exception as exc:
+        logger.debug("verify_signature failed: %s", exc, exc_info=True)
         return False

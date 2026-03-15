@@ -4,6 +4,7 @@ Type definitions for the Capture SDK.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -35,10 +36,24 @@ class CaptureOptions:
 
 @dataclass
 class SignOptions:
-    """Options for signing asset registration."""
+    """Options for signing asset registration.
 
-    private_key: str
-    """Ethereum private key for EIP-191 signing."""
+    Provide either a ``private_key`` (held in memory only for the duration of
+    the signing operation) **or** a ``signer`` callback together with an
+    ``address`` so that the private key never enters this process at all.
+    """
+
+    private_key: str | None = None
+    """Ethereum private key for EIP-191 signing (with or without 0x prefix)."""
+
+    signer: Callable[[str], str] | None = None
+    """Custom signer callback – receives the hex-encoded integrity hash and
+    must return an EIP-191 signature hex string.  Use this to keep the private
+    key entirely out of the SDK process."""
+
+    address: str | None = None
+    """Ethereum address that corresponds to the ``signer`` callback.
+    Required when ``signer`` is provided."""
 
 
 @dataclass
@@ -74,8 +89,8 @@ class UpdateOptions:
     commit_message: str | None = None
     """Description of the changes."""
 
-    custom_metadata: dict[str, Any] | None = None
-    """Custom metadata fields."""
+    custom_metadata: dict[str, str | int | float | bool] | None = None
+    """Custom metadata fields (values must be str, int, float, or bool; max 10 KB serialized)."""
 
 
 @dataclass
