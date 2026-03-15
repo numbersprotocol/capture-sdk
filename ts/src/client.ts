@@ -16,10 +16,11 @@ import {
 } from './types.js'
 import {
   ValidationError,
+  NetworkError,
   createApiError,
   CaptureError,
 } from './errors.js'
-import { sha256, createIntegrityProof, signIntegrityProof } from './crypto.js'
+import { sha256, createIntegrityProof, signIntegrityProof, serializeProof } from './crypto.js'
 
 const DEFAULT_BASE_URL = 'https://api.numbersprotocol.io/api/v3'
 const HISTORY_API_URL =
@@ -173,11 +174,18 @@ export class Capture {
       requestBody = JSON.stringify(body)
     }
 
-    const response = await fetch(url, {
-      method,
-      headers,
-      body: requestBody,
-    })
+    let response: Response
+    try {
+      response = await fetch(url, {
+        method,
+        headers,
+        body: requestBody,
+      })
+    } catch (error) {
+      throw new NetworkError(
+        `Network error: ${error instanceof Error ? error.message : String(error)}`
+      )
+    }
 
     if (!response.ok) {
       let message = `API request failed with status ${response.status}`
@@ -254,7 +262,7 @@ export class Capture {
       const proof = createIntegrityProof(proofHash, mimeType)
       const signature = await signIntegrityProof(proof, options.sign.privateKey)
 
-      formData.append('signed_metadata', JSON.stringify(proof))
+      formData.append('signed_metadata', serializeProof(proof))
       formData.append('signature', JSON.stringify([signature]))
     }
 
@@ -371,13 +379,20 @@ export class Capture {
       url.searchParams.set('testnet', 'true')
     }
 
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `token ${this.token}`,
-      },
-    })
+    let response: Response
+    try {
+      response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `token ${this.token}`,
+        },
+      })
+    } catch (error) {
+      throw new NetworkError(
+        `Network error: ${error instanceof Error ? error.message : String(error)}`
+      )
+    }
 
     if (!response.ok) {
       throw createApiError(response.status, 'Failed to fetch asset history', nid)
@@ -427,14 +442,21 @@ export class Capture {
       timestampCreated: c.timestamp,
     }))
 
-    const response = await fetch(MERGE_TREE_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `token ${this.token}`,
-      },
-      body: JSON.stringify(commitData),
-    })
+    let response: Response
+    try {
+      response = await fetch(MERGE_TREE_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `token ${this.token}`,
+        },
+        body: JSON.stringify(commitData),
+      })
+    } catch (error) {
+      throw new NetworkError(
+        `Network error: ${error instanceof Error ? error.message : String(error)}`
+      )
+    }
 
     if (!response.ok) {
       throw createApiError(response.status, 'Failed to merge asset trees', nid)
@@ -517,13 +539,20 @@ export class Capture {
     }
 
     // Verify Engine API requires token in Authorization header, not form data
-    const response = await fetch(ASSET_SEARCH_API_URL, {
-      method: 'POST',
-      headers: {
-        Authorization: `token ${this.token}`,
-      },
-      body: formData,
-    })
+    let response: Response
+    try {
+      response = await fetch(ASSET_SEARCH_API_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: `token ${this.token}`,
+        },
+        body: formData,
+      })
+    } catch (error) {
+      throw new NetworkError(
+        `Network error: ${error instanceof Error ? error.message : String(error)}`
+      )
+    }
 
     if (!response.ok) {
       let message = `Asset search failed with status ${response.status}`
@@ -573,14 +602,21 @@ export class Capture {
       throw new ValidationError('nid is required for NFT search')
     }
 
-    const response = await fetch(NFT_SEARCH_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `token ${this.token}`,
-      },
-      body: JSON.stringify({ nid }),
-    })
+    let response: Response
+    try {
+      response = await fetch(NFT_SEARCH_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `token ${this.token}`,
+        },
+        body: JSON.stringify({ nid }),
+      })
+    } catch (error) {
+      throw new NetworkError(
+        `Network error: ${error instanceof Error ? error.message : String(error)}`
+      )
+    }
 
     if (!response.ok) {
       let message = `NFT search failed with status ${response.status}`
