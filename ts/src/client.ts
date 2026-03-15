@@ -147,6 +147,9 @@ export class Capture {
     if (!options.token) {
       throw new ValidationError('token is required')
     }
+    if (options.baseUrl !== undefined && !options.baseUrl.startsWith('https://')) {
+      throw new ValidationError('baseUrl must use HTTPS')
+    }
     this.token = options.token
     this.testnet = options.testnet ?? false
     this.baseUrl = options.baseUrl ?? DEFAULT_BASE_URL
@@ -375,7 +378,6 @@ export class Capture {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `token ${this.token}`,
       },
     })
 
@@ -431,7 +433,6 @@ export class Capture {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `token ${this.token}`,
       },
       body: JSON.stringify(commitData),
     })
