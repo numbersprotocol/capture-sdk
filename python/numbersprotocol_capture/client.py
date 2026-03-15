@@ -168,7 +168,12 @@ class Capture:
         self.close()
 
     def __repr__(self) -> str:
-        masked = f"{'*' * max(0, len(self._token) - 4)}{self._token[-4:]}" if self._token else "***"
+        if not self._token:
+            masked = "***"
+        elif len(self._token) < 4:
+            masked = "*" * len(self._token)
+        else:
+            masked = f"{'*' * (len(self._token) - 4)}{self._token[-4:]}"
         return f"Capture(token='{masked}', base_url='{self._base_url}')"
 
     def close(self) -> None:

@@ -304,7 +304,7 @@ export class Capture {
     }
     if (options.customMetadata) {
       const serialized = JSON.stringify(options.customMetadata)
-      if (serialized.length > 10 * 1024) {
+      if (new TextEncoder().encode(serialized).length > 10 * 1024) {
         throw new ValidationError(
           'customMetadata must not exceed 10 KB when serialized'
         )
