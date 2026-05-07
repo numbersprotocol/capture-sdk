@@ -175,7 +175,7 @@ class Capture:
         *,
         data: dict[str, Any] | None = None,
         files: dict[str, Any] | None = None,
-        json_body: dict[str, Any] | None = None,
+        json_body: dict[str, Any] | list[Any] | None = None,
         nid: str | None = None,
     ) -> dict[str, Any]:
         """Makes an authenticated API request."""
@@ -445,25 +445,7 @@ class Capture:
             params["testnet"] = "true"
 
         url = f"{HISTORY_API_URL}?{urlencode(params)}"
-
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"token {self._token}",
-        }
-
-        try:
-            response = self._client.get(url, headers=headers)
-        except httpx.RequestError as e:
-            raise create_api_error(0, f"Network error: {e}", nid) from e
-
-        if not response.is_success:
-            raise create_api_error(
-                response.status_code,
-                "Failed to fetch asset history",
-                nid,
-            )
-
-        data = response.json()
+        data = self._request("GET", url, nid=nid)
 
         return [
             Commit(
@@ -511,28 +493,7 @@ class Capture:
             for c in commits
         ]
 
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"token {self._token}",
-        }
-
-        try:
-            response = self._client.post(
-                MERGE_TREE_API_URL,
-                headers=headers,
-                json=commit_data,
-            )
-        except httpx.RequestError as e:
-            raise create_api_error(0, f"Network error: {e}", nid) from e
-
-        if not response.is_success:
-            raise create_api_error(
-                response.status_code,
-                "Failed to merge asset trees",
-                nid,
-            )
-
-        data = response.json()
+        data = self._request("POST", MERGE_TREE_API_URL, json_body=commit_data, nid=nid)
         merged = data.get("mergedAssetTree", data)
 
         # Map known fields and put the rest in extra
@@ -675,51 +636,24 @@ class Capture:
             form_data["sample_count"] = str(options.sample_count)
 
         # Verify Engine API requires token in Authorization header, not form data
-        headers = {"Authorization": f"token {self._token}"}
-
-        try:
-            if files_data:
-                response = self._client.post(
-                    ASSET_SEARCH_API_URL,
-                    headers=headers,
-                    data=form_data,
-                    files=files_data,
-                )
-            else:
-                response = self._client.post(
-                    ASSET_SEARCH_API_URL,
-                    headers=headers,
-                    data=form_data,
-                )
-        except httpx.RequestError as e:
-            raise create_api_error(0, f"Network error: {e}") from e
-
-        if not response.is_success:
-            message = f"Asset search failed with status {response.status_code}"
-            try:
-                error_data = response.json()
-                message = (
-                    error_data.get("message")
-                    or error_data.get("error")
-                    or message
-                )
-            except Exception:
-                pass
-            raise create_api_error(response.status_code, message)
-
-        data = response.json()
+        response_data = self._request(
+            "POST",
+            ASSET_SEARCH_API_URL,
+            data=form_data,
+            files=files_data,
+        )
 
         # Map response to our type
         similar_matches = [
             SimilarMatch(nid=m["nid"], distance=m["distance"])
-            for m in data.get("similar_matches", [])
+            for m in response_data.get("similar_matches", [])
         ]
 
         return AssetSearchResult(
-            precise_match=data.get("precise_match", ""),
-            input_file_mime_type=data.get("input_file_mime_type", ""),
+            precise_match=response_data.get("precise_match", ""),
+            input_file_mime_type=response_data.get("input_file_mime_type", ""),
             similar_matches=similar_matches,
-            order_id=data.get("order_id", ""),
+            order_id=response_data.get("order_id", ""),
         )
 
     def search_nft(self, nid: str) -> NftSearchResult:
@@ -740,34 +674,7 @@ class Capture:
         if not nid:
             raise ValidationError("nid is required for NFT search")
 
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"token {self._token}",
-        }
-
-        try:
-            response = self._client.post(
-                NFT_SEARCH_API_URL,
-                headers=headers,
-                json={"nid": nid},
-            )
-        except httpx.RequestError as e:
-            raise create_api_error(0, f"Network error: {e}", nid) from e
-
-        if not response.is_success:
-            message = f"NFT search failed with status {response.status_code}"
-            try:
-                error_data = response.json()
-                message = (
-                    error_data.get("message")
-                    or error_data.get("error")
-                    or message
-                )
-            except Exception:
-                pass
-            raise create_api_error(response.status_code, message, nid)
-
-        data = response.json()
+        data = self._request("POST", NFT_SEARCH_API_URL, json_body={"nid": nid}, nid=nid)
 
         # Map response to our type
         records = [
