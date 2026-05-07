@@ -6,9 +6,10 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import re
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 import httpx
 
@@ -35,6 +36,16 @@ HISTORY_API_URL = "https://e23hi68y55.execute-api.us-east-1.amazonaws.com/defaul
 MERGE_TREE_API_URL = "https://us-central1-numbers-protocol-api.cloudfunctions.net/get-full-asset-tree"
 ASSET_SEARCH_API_URL = "https://us-central1-numbers-protocol-api.cloudfunctions.net/asset-search"
 NFT_SEARCH_API_URL = "https://eofveg1f59hrbn.m.pipedream.net"
+
+# Valid NID characters: alphanumeric only (matches IPFS CID format)
+_NID_PATTERN = re.compile(r"^[a-zA-Z0-9]+$")
+
+
+def _validate_nid_format(nid: str) -> None:
+    """Validates that a NID contains only safe alphanumeric characters."""
+    if not _NID_PATTERN.match(nid):
+        raise ValidationError("nid contains invalid characters")
+
 
 # Common MIME types by extension
 MIME_TYPES: dict[str, str] = {
@@ -362,6 +373,7 @@ class Capture:
         """
         if not nid:
             raise ValidationError("nid is required")
+        _validate_nid_format(nid)
 
         # Build options from args if not provided
         if options is None:
@@ -388,7 +400,8 @@ class Capture:
 
         response = self._request(
             "PATCH",
-            f"{self._base_url}/assets/{nid}/",
+            # quote() provides defense-in-depth alongside format validation
+            f"{self._base_url}/assets/{quote(nid, safe='')}/",
             data=form_data,
             nid=nid,
         )
@@ -412,10 +425,12 @@ class Capture:
         """
         if not nid:
             raise ValidationError("nid is required")
+        _validate_nid_format(nid)
 
         response = self._request(
             "GET",
-            f"{self._base_url}/assets/{nid}/",
+            # quote() provides defense-in-depth alongside format validation
+            f"{self._base_url}/assets/{quote(nid, safe='')}/",
             nid=nid,
         )
 

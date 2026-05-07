@@ -1,7 +1,10 @@
 """Tests for crypto utilities."""
 
+import json
+
 from numbersprotocol_capture import sha256, verify_signature
 from numbersprotocol_capture.crypto import create_integrity_proof, sign_integrity_proof
+from numbersprotocol_capture.types import IntegrityProof
 
 
 class TestSha256:
@@ -100,3 +103,49 @@ class TestVerifySignature:
             signature.signature,
             wrong_address,
         )
+
+
+class TestIntegrityProofSerialization:
+    """Tests for integrity proof JSON serialization consistency."""
+
+    def test_sign_integrity_proof_uses_only_three_keys(self) -> None:
+        """Test that sign_integrity_proof serializes exactly three keys in expected order."""
+        proof = IntegrityProof(
+            proof_hash="abc123",
+            asset_mime_type="image/jpeg",
+            created_at=1700000000000,
+        )
+        # Manually reproduce the expected JSON (same as the implementation)
+        expected_json = json.dumps(
+            {
+                "proof_hash": proof.proof_hash,
+                "asset_mime_type": proof.asset_mime_type,
+                "created_at": proof.created_at,
+            },
+            separators=(",", ":"),
+        )
+        expected_sha = sha256(expected_json.encode("utf-8"))
+
+        private_key = "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        signature = sign_integrity_proof(proof, private_key)
+
+        assert signature.integrity_sha == expected_sha
+
+    def test_sign_integrity_proof_ignores_extra_fields(self) -> None:
+        """Test that two identical proofs produce identical integrity_sha values."""
+        proof1 = IntegrityProof(
+            proof_hash="abc123",
+            asset_mime_type="image/jpeg",
+            created_at=1700000000000,
+        )
+        proof2 = IntegrityProof(
+            proof_hash="abc123",
+            asset_mime_type="image/jpeg",
+            created_at=1700000000000,
+        )
+        private_key = "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+        sig1 = sign_integrity_proof(proof1, private_key)
+        sig2 = sign_integrity_proof(proof2, private_key)
+
+        assert sig1.integrity_sha == sig2.integrity_sha

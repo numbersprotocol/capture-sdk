@@ -41,7 +41,11 @@ export async function signIntegrityProof(
   const wallet = new Wallet(privateKey)
 
   // Compute integrity hash of the signed metadata JSON
-  const proofJson = JSON.stringify(proof)
+  const proofJson = JSON.stringify({
+    proof_hash: proof.proof_hash,
+    asset_mime_type: proof.asset_mime_type,
+    created_at: proof.created_at,
+  })
   const proofBytes = new TextEncoder().encode(proofJson)
   const integritySha = await sha256(proofBytes)
 
