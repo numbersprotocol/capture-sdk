@@ -30,6 +30,11 @@ const ASSET_SEARCH_API_URL =
   'https://us-central1-numbers-protocol-api.cloudfunctions.net/asset-search'
 const NFT_SEARCH_API_URL = 'https://eofveg1f59hrbn.m.pipedream.net'
 
+const DEFAULT_TIMEOUT_MS = 30000
+const DEFAULT_MAX_RETRIES = 3
+const DEFAULT_RETRY_DELAY_MS = 1000
+const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504])
+
 /** Common MIME types by extension */
 const MIME_TYPES: Record<string, string> = {
   jpg: 'image/jpeg',
@@ -142,6 +147,12 @@ export class Capture {
   private readonly token: string
   private readonly baseUrl: string
   private readonly testnet: boolean
+  private readonly timeout: number
+  private readonly maxRetries: number
+  private readonly retryDelay: number
+  private readonly rateLimit?: number
+  private rateLimitTokens: number
+  private rateLimitLastTime: number
 
   constructor(options: CaptureOptions) {
     if (!options.token) {
@@ -150,6 +161,91 @@ export class Capture {
     this.token = options.token
     this.testnet = options.testnet ?? false
     this.baseUrl = options.baseUrl ?? DEFAULT_BASE_URL
+    this.timeout = options.timeout ?? DEFAULT_TIMEOUT_MS
+    this.maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES
+    this.retryDelay = options.retryDelay ?? DEFAULT_RETRY_DELAY_MS
+    this.rateLimit = options.rateLimit
+    this.rateLimitTokens = options.rateLimit ?? 0
+    this.rateLimitLastTime = Date.now()
+  }
+
+  /**
+   * Acquires a rate-limit token, sleeping if the token bucket is empty.
+   */
+  private async acquireRateLimitToken(): Promise<void> {
+    if (!this.rateLimit) return
+
+    const msPerSecond = 1000
+
+    while (true) {
+      const now = Date.now()
+      const elapsed = (now - this.rateLimitLastTime) / msPerSecond
+      this.rateLimitTokens = Math.min(
+        this.rateLimit,
+        this.rateLimitTokens + elapsed * this.rateLimit
+      )
+      this.rateLimitLastTime = now
+
+      if (this.rateLimitTokens >= 1) {
+        this.rateLimitTokens -= 1
+        return
+      }
+
+      const waitMs = Math.ceil(((1 - this.rateLimitTokens) / this.rateLimit) * msPerSecond)
+      await new Promise<void>((resolve) => setTimeout(resolve, waitMs))
+    }
+  }
+
+  /**
+   * Fetches a URL with timeout, retry, and rate-limiting applied.
+   */
+  private async fetchWithRetry(
+    url: string,
+    init: RequestInit,
+    nid?: string
+  ): Promise<Response> {
+    await this.acquireRateLimitToken()
+
+    let finalError: unknown
+    let finalResponse: Response | undefined
+
+    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      if (attempt > 0) {
+        const delay = this.retryDelay * Math.pow(2, attempt - 1)
+        await new Promise<void>((resolve) => setTimeout(resolve, delay))
+      }
+
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), this.timeout)
+
+      try {
+        const response = await fetch(url, { ...init, signal: controller.signal })
+        clearTimeout(timeoutId)
+        finalResponse = response
+
+        if (RETRYABLE_STATUS_CODES.has(response.status) && attempt < this.maxRetries) {
+          continue
+        }
+
+        return response
+      } catch (error) {
+        clearTimeout(timeoutId)
+        finalError = error
+      }
+    }
+
+    if (finalResponse) {
+      return finalResponse
+    }
+
+    if (finalError instanceof DOMException && finalError.name === 'AbortError') {
+      throw createApiError(0, `Request timed out after ${this.timeout}ms`, nid)
+    }
+    throw createApiError(
+      0,
+      `Network error: ${(finalError as Error)?.message ?? 'Unknown error'}`,
+      nid
+    )
   }
 
   /**
@@ -173,11 +269,11 @@ export class Capture {
       requestBody = JSON.stringify(body)
     }
 
-    const response = await fetch(url, {
-      method,
-      headers,
-      body: requestBody,
-    })
+    const response = await this.fetchWithRetry(
+      url,
+      { method, headers, body: requestBody },
+      nid
+    )
 
     if (!response.ok) {
       let message = `API request failed with status ${response.status}`
@@ -371,13 +467,17 @@ export class Capture {
       url.searchParams.set('testnet', 'true')
     }
 
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `token ${this.token}`,
+    const response = await this.fetchWithRetry(
+      url.toString(),
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `token ${this.token}`,
+        },
       },
-    })
+      nid
+    )
 
     if (!response.ok) {
       throw createApiError(response.status, 'Failed to fetch asset history', nid)
@@ -427,14 +527,18 @@ export class Capture {
       timestampCreated: c.timestamp,
     }))
 
-    const response = await fetch(MERGE_TREE_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `token ${this.token}`,
+    const response = await this.fetchWithRetry(
+      MERGE_TREE_API_URL,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `token ${this.token}`,
+        },
+        body: JSON.stringify(commitData),
       },
-      body: JSON.stringify(commitData),
-    })
+      nid
+    )
 
     if (!response.ok) {
       throw createApiError(response.status, 'Failed to merge asset trees', nid)
@@ -517,7 +621,7 @@ export class Capture {
     }
 
     // Verify Engine API requires token in Authorization header, not form data
-    const response = await fetch(ASSET_SEARCH_API_URL, {
+    const response = await this.fetchWithRetry(ASSET_SEARCH_API_URL, {
       method: 'POST',
       headers: {
         Authorization: `token ${this.token}`,
@@ -573,14 +677,18 @@ export class Capture {
       throw new ValidationError('nid is required for NFT search')
     }
 
-    const response = await fetch(NFT_SEARCH_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `token ${this.token}`,
+    const response = await this.fetchWithRetry(
+      NFT_SEARCH_API_URL,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `token ${this.token}`,
+        },
+        body: JSON.stringify({ nid }),
       },
-      body: JSON.stringify({ nid }),
-    })
+      nid
+    )
 
     if (!response.ok) {
       let message = `NFT search failed with status ${response.status}`

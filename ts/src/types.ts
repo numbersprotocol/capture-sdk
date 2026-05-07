@@ -18,6 +18,14 @@ export interface CaptureOptions {
   testnet?: boolean
   /** Custom base URL (overrides testnet setting) */
   baseUrl?: string
+  /** Request timeout in milliseconds (default: 30000) */
+  timeout?: number
+  /** Maximum number of retry attempts for transient failures (default: 3) */
+  maxRetries?: number
+  /** Initial delay in milliseconds for exponential backoff (default: 1000) */
+  retryDelay?: number
+  /** Maximum requests per second for client-side rate limiting (default: none) */
+  rateLimit?: number
 }
 
 /**
