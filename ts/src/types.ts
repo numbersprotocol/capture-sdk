@@ -7,6 +7,7 @@ export type FileInput =
   | Blob // Browser Blob
   | Buffer // Node.js Buffer
   | Uint8Array // Universal binary data
+  | ReadableStream // Streaming input (buffered internally)
 
 /**
  * Configuration options for the Capture client.

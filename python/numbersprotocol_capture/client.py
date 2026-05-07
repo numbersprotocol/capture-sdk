@@ -4,10 +4,12 @@ Main Capture SDK client.
 
 from __future__ import annotations
 
+import hashlib
+import io
 import json
 import mimetypes
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 from urllib.parse import urlencode
 
 import httpx
@@ -65,36 +67,64 @@ def _get_mime_type(filename: str) -> str:
     return mime_type or "application/octet-stream"
 
 
+def _sha256_stream(file_obj: IO[bytes], chunk_size: int = 65536) -> str:
+    """
+    Computes SHA-256 hash of a file-like object using chunked reading.
+
+    After hashing, seeks back to the beginning so the same handle can be
+    used for the upload.
+    """
+    hasher = hashlib.sha256()
+    while chunk := file_obj.read(chunk_size):
+        hasher.update(chunk)
+    file_obj.seek(0)
+    return hasher.hexdigest()
+
+
 def _normalize_file(
     file_input: FileInput,
     options: RegisterOptions | None = None,
-) -> tuple[bytes, str, str]:
+) -> tuple[bytes | IO[bytes], str, str]:
     """
     Normalizes various file input types to a common format.
 
+    For str/Path inputs, returns an open file handle for streaming upload.
+    The caller is responsible for closing the handle.
+
     Returns:
-        Tuple of (data, filename, mime_type)
+        Tuple of (data, filename, mime_type) where data is bytes or a
+        seekable file-like object.
     """
-    # 1. String path
+    # 1. File-like object (IO[bytes]) — check before str/Path/bytes
+    if isinstance(file_input, io.IOBase):
+        name: str | None = getattr(file_input, "name", None)
+        if name:
+            filename = Path(str(name)).name
+        elif options and options.filename:
+            filename = options.filename
+        else:
+            raise ValidationError("filename is required for file-like input")
+        mime_type = _get_mime_type(filename)
+        return file_input, filename, mime_type  # type: ignore[return-value]
+
+    # 2. String path
     if isinstance(file_input, str):
         path = Path(file_input)
         if not path.exists():
             raise ValidationError(f"File not found: {file_input}")
-        data = path.read_bytes()
         filename = path.name
         mime_type = _get_mime_type(filename)
-        return data, filename, mime_type
+        return path.open("rb"), filename, mime_type
 
-    # 2. Path object
+    # 3. Path object
     if isinstance(file_input, Path):
         if not file_input.exists():
             raise ValidationError(f"File not found: {file_input}")
-        data = file_input.read_bytes()
         filename = file_input.name
         mime_type = _get_mime_type(filename)
-        return data, filename, mime_type
+        return file_input.open("rb"), filename, mime_type
 
-    # 3. bytes or bytearray
+    # 4. bytes or bytearray
     if isinstance(file_input, bytes | bytearray):
         if not options or not options.filename:
             raise ValidationError("filename is required for binary input")
@@ -281,53 +311,72 @@ class Capture:
             raise ValidationError("headline must be 25 characters or less")
 
         # Normalize file input
+        # str/Path inputs return an open file handle — we must close it.
         data, file_name, mime_type = _normalize_file(file, options)
+        _opened_handle = isinstance(file, (str, Path))
 
-        if len(data) == 0:
-            raise ValidationError("file cannot be empty")
+        try:
+            # Check if file is empty
+            if isinstance(data, (bytes, bytearray)):
+                if len(data) == 0:
+                    raise ValidationError("file cannot be empty")
+            else:
+                # File-like object: seek to end to determine size, then reset
+                data.seek(0, 2)
+                size = data.tell()
+                data.seek(0)
+                if size == 0:
+                    raise ValidationError("file cannot be empty")
 
-        # Build form data
-        form_data: dict[str, Any] = {
-            "public_access": str(options.public_access).lower(),
-        }
-
-        if options.caption:
-            form_data["caption"] = options.caption
-        if options.headline:
-            form_data["headline"] = options.headline
-
-        # Handle signing if private key provided
-        if options.sign and options.sign.private_key:
-            proof_hash = sha256(data)
-            proof = create_integrity_proof(proof_hash, mime_type)
-            signature = sign_integrity_proof(proof, options.sign.private_key)
-
-            proof_dict = {
-                "proof_hash": proof.proof_hash,
-                "asset_mime_type": proof.asset_mime_type,
-                "created_at": proof.created_at,
+            # Build form data
+            form_data: dict[str, Any] = {
+                "public_access": str(options.public_access).lower(),
             }
-            form_data["signed_metadata"] = json.dumps(proof_dict)
 
-            sig_dict = {
-                "proofHash": signature.proof_hash,
-                "provider": signature.provider,
-                "signature": signature.signature,
-                "publicKey": signature.public_key,
-                "integritySha": signature.integrity_sha,
-            }
-            form_data["signature"] = json.dumps([sig_dict])
+            if options.caption:
+                form_data["caption"] = options.caption
+            if options.headline:
+                form_data["headline"] = options.headline
 
-        files = {"asset_file": (file_name, data, mime_type)}
+            # Handle signing if private key provided
+            if options.sign and options.sign.private_key:
+                if isinstance(data, (bytes, bytearray)):
+                    proof_hash = sha256(data)
+                else:
+                    # Stream the file in chunks; _sha256_stream seeks back to 0
+                    proof_hash = _sha256_stream(data)
+                proof = create_integrity_proof(proof_hash, mime_type)
+                signature = sign_integrity_proof(proof, options.sign.private_key)
 
-        response = self._request(
-            "POST",
-            f"{self._base_url}/assets/",
-            data=form_data,
-            files=files,
-        )
+                proof_dict = {
+                    "proof_hash": proof.proof_hash,
+                    "asset_mime_type": proof.asset_mime_type,
+                    "created_at": proof.created_at,
+                }
+                form_data["signed_metadata"] = json.dumps(proof_dict)
 
-        return _to_asset(response)
+                sig_dict = {
+                    "proofHash": signature.proof_hash,
+                    "provider": signature.provider,
+                    "signature": signature.signature,
+                    "publicKey": signature.public_key,
+                    "integritySha": signature.integrity_sha,
+                }
+                form_data["signature"] = json.dumps([sig_dict])
+
+            files = {"asset_file": (file_name, data, mime_type)}
+
+            response = self._request(
+                "POST",
+                f"{self._base_url}/assets/",
+                data=form_data,
+                files=files,
+            )
+
+            return _to_asset(response)
+        finally:
+            if _opened_handle and hasattr(data, "close"):
+                data.close()  # type: ignore[union-attr]
 
     def update(
         self,
@@ -660,13 +709,16 @@ class Capture:
 
         # Add input source
         files_data: dict[str, Any] | None = None
+        _search_handle: IO[bytes] | None = None
         if options.file_url:
             form_data["url"] = options.file_url
         elif options.nid:
             form_data["nid"] = options.nid
         elif options.file:
-            data, filename, mime_type = _normalize_file(options.file)
-            files_data = {"file": (filename, data, mime_type)}
+            file_data, filename, mime_type = _normalize_file(options.file)
+            if isinstance(options.file, (str, Path)):
+                _search_handle = file_data  # type: ignore[assignment]
+            files_data = {"file": (filename, file_data, mime_type)}
 
         # Add optional parameters
         if options.threshold is not None:
@@ -678,49 +730,53 @@ class Capture:
         headers = {"Authorization": f"token {self._token}"}
 
         try:
-            if files_data:
-                response = self._client.post(
-                    ASSET_SEARCH_API_URL,
-                    headers=headers,
-                    data=form_data,
-                    files=files_data,
-                )
-            else:
-                response = self._client.post(
-                    ASSET_SEARCH_API_URL,
-                    headers=headers,
-                    data=form_data,
-                )
-        except httpx.RequestError as e:
-            raise create_api_error(0, f"Network error: {e}") from e
-
-        if not response.is_success:
-            message = f"Asset search failed with status {response.status_code}"
             try:
-                error_data = response.json()
-                message = (
-                    error_data.get("message")
-                    or error_data.get("error")
-                    or message
-                )
-            except Exception:
-                pass
-            raise create_api_error(response.status_code, message)
+                if files_data:
+                    response = self._client.post(
+                        ASSET_SEARCH_API_URL,
+                        headers=headers,
+                        data=form_data,
+                        files=files_data,
+                    )
+                else:
+                    response = self._client.post(
+                        ASSET_SEARCH_API_URL,
+                        headers=headers,
+                        data=form_data,
+                    )
+            except httpx.RequestError as e:
+                raise create_api_error(0, f"Network error: {e}") from e
 
-        data = response.json()
+            if not response.is_success:
+                message = f"Asset search failed with status {response.status_code}"
+                try:
+                    error_data = response.json()
+                    message = (
+                        error_data.get("message")
+                        or error_data.get("error")
+                        or message
+                    )
+                except Exception:
+                    pass
+                raise create_api_error(response.status_code, message)
 
-        # Map response to our type
-        similar_matches = [
-            SimilarMatch(nid=m["nid"], distance=m["distance"])
-            for m in data.get("similar_matches", [])
-        ]
+            data = response.json()
 
-        return AssetSearchResult(
-            precise_match=data.get("precise_match", ""),
-            input_file_mime_type=data.get("input_file_mime_type", ""),
-            similar_matches=similar_matches,
-            order_id=data.get("order_id", ""),
-        )
+            # Map response to our type
+            similar_matches = [
+                SimilarMatch(nid=m["nid"], distance=m["distance"])
+                for m in data.get("similar_matches", [])
+            ]
+
+            return AssetSearchResult(
+                precise_match=data.get("precise_match", ""),
+                input_file_mime_type=data.get("input_file_mime_type", ""),
+                similar_matches=similar_matches,
+                order_id=data.get("order_id", ""),
+            )
+        finally:
+            if _search_handle is not None:
+                _search_handle.close()
 
     def search_nft(self, nid: str) -> NftSearchResult:
         """
@@ -780,6 +836,607 @@ class Capture:
             for r in data.get("records", [])
         ]
 
+        return NftSearchResult(
+            records=records,
+            order_id=data.get("order_id", ""),
+        )
+
+
+class AsyncCapture:
+    """
+    Async version of the Capture SDK client using ``httpx.AsyncClient``.
+
+    All methods are ``async def`` and must be awaited. Suitable for use in
+    asyncio applications such as FastAPI or aiohttp servers.
+
+    Example:
+        >>> from numbersprotocol_capture import AsyncCapture
+        >>> async with AsyncCapture(token="your-api-token") as capture:
+        ...     asset = await capture.register("./photo.jpg", caption="My photo")
+        ...     print(asset.nid)
+    """
+
+    def __init__(
+        self,
+        token: str | None = None,
+        *,
+        testnet: bool = False,
+        base_url: str | None = None,
+        options: CaptureOptions | None = None,
+    ):
+        """
+        Initialize the AsyncCapture client.
+
+        Args:
+            token: Authentication token for API access.
+            testnet: Use testnet environment (default: False).
+            base_url: Custom base URL (overrides testnet setting).
+            options: CaptureOptions object (alternative to individual args).
+        """
+        if options:
+            token = options.token
+            testnet = options.testnet
+            base_url = options.base_url
+
+        if not token:
+            raise ValidationError("token is required")
+
+        self._token = token
+        self._testnet = testnet
+        self._base_url = base_url or DEFAULT_BASE_URL
+        self._client = httpx.AsyncClient(timeout=30.0)
+
+    async def __aenter__(self) -> AsyncCapture:
+        return self
+
+    async def __aexit__(self, *args: Any) -> None:
+        await self.aclose()
+
+    async def aclose(self) -> None:
+        """Close the async HTTP client."""
+        await self._client.aclose()
+
+    async def _request(
+        self,
+        method: str,
+        url: str,
+        *,
+        data: dict[str, Any] | None = None,
+        files: dict[str, Any] | None = None,
+        json_body: dict[str, Any] | None = None,
+        nid: str | None = None,
+    ) -> dict[str, Any]:
+        """Makes an authenticated async API request."""
+        headers = {"Authorization": f"token {self._token}"}
+
+        try:
+            if files:
+                response = await self._client.request(
+                    method,
+                    url,
+                    headers=headers,
+                    data=data,
+                    files=files,
+                )
+            elif json_body:
+                headers["Content-Type"] = "application/json"
+                response = await self._client.request(
+                    method,
+                    url,
+                    headers=headers,
+                    json=json_body,
+                )
+            else:
+                response = await self._client.request(
+                    method,
+                    url,
+                    headers=headers,
+                    data=data,
+                )
+        except httpx.RequestError as e:
+            raise create_api_error(0, f"Network error: {e}", nid) from e
+
+        if not response.is_success:
+            message = f"API request failed with status {response.status_code}"
+            try:
+                error_data = response.json()
+                message = error_data.get("detail") or error_data.get("message") or message
+            except Exception:
+                pass
+            raise create_api_error(response.status_code, message, nid)
+
+        result: dict[str, Any] = response.json()
+        return result
+
+    async def register(
+        self,
+        file: FileInput,
+        *,
+        filename: str | None = None,
+        caption: str | None = None,
+        headline: str | None = None,
+        public_access: bool = True,
+        sign: dict[str, str] | None = None,
+        options: RegisterOptions | None = None,
+    ) -> Asset:
+        """
+        Registers a new asset (async).
+
+        Args:
+            file: File to register (path, Path, bytes, bytearray, or IO[bytes]).
+            filename: Filename (required for bytes/bytearray/IO inputs without name).
+            caption: Brief description of the asset.
+            headline: Asset title (max 25 characters).
+            public_access: Pin to public IPFS gateway (default: True).
+            sign: Signing configuration with 'private_key' key.
+            options: RegisterOptions object (alternative to individual args).
+
+        Returns:
+            Registered Asset information.
+        """
+        if options is None:
+            from .types import SignOptions
+
+            sign_opts = SignOptions(private_key=sign["private_key"]) if sign else None
+            options = RegisterOptions(
+                filename=filename,
+                caption=caption,
+                headline=headline,
+                public_access=public_access,
+                sign=sign_opts,
+            )
+
+        if options.headline and len(options.headline) > 25:
+            raise ValidationError("headline must be 25 characters or less")
+
+        data, file_name, mime_type = _normalize_file(file, options)
+        _opened_handle = isinstance(file, (str, Path))
+
+        try:
+            if isinstance(data, (bytes, bytearray)):
+                if len(data) == 0:
+                    raise ValidationError("file cannot be empty")
+            else:
+                data.seek(0, 2)
+                size = data.tell()
+                data.seek(0)
+                if size == 0:
+                    raise ValidationError("file cannot be empty")
+
+            form_data: dict[str, Any] = {
+                "public_access": str(options.public_access).lower(),
+            }
+            if options.caption:
+                form_data["caption"] = options.caption
+            if options.headline:
+                form_data["headline"] = options.headline
+
+            if options.sign and options.sign.private_key:
+                if isinstance(data, (bytes, bytearray)):
+                    proof_hash = sha256(data)
+                else:
+                    proof_hash = _sha256_stream(data)
+                proof = create_integrity_proof(proof_hash, mime_type)
+                signature = sign_integrity_proof(proof, options.sign.private_key)
+
+                proof_dict = {
+                    "proof_hash": proof.proof_hash,
+                    "asset_mime_type": proof.asset_mime_type,
+                    "created_at": proof.created_at,
+                }
+                form_data["signed_metadata"] = json.dumps(proof_dict)
+
+                sig_dict = {
+                    "proofHash": signature.proof_hash,
+                    "provider": signature.provider,
+                    "signature": signature.signature,
+                    "publicKey": signature.public_key,
+                    "integritySha": signature.integrity_sha,
+                }
+                form_data["signature"] = json.dumps([sig_dict])
+
+            files = {"asset_file": (file_name, data, mime_type)}
+            response = await self._request(
+                "POST",
+                f"{self._base_url}/assets/",
+                data=form_data,
+                files=files,
+            )
+            return _to_asset(response)
+        finally:
+            if _opened_handle and hasattr(data, "close"):
+                data.close()  # type: ignore[union-attr]
+
+    async def update(
+        self,
+        nid: str,
+        *,
+        caption: str | None = None,
+        headline: str | None = None,
+        commit_message: str | None = None,
+        custom_metadata: dict[str, Any] | None = None,
+        options: UpdateOptions | None = None,
+    ) -> Asset:
+        """
+        Updates an existing asset's metadata (async).
+
+        Args:
+            nid: Numbers ID of the asset to update.
+            caption: Updated description.
+            headline: Updated title (max 25 characters).
+            commit_message: Description of the changes.
+            custom_metadata: Custom metadata fields.
+            options: UpdateOptions object (alternative to individual args).
+
+        Returns:
+            Updated Asset information.
+        """
+        if not nid:
+            raise ValidationError("nid is required")
+
+        if options is None:
+            options = UpdateOptions(
+                caption=caption,
+                headline=headline,
+                commit_message=commit_message,
+                custom_metadata=custom_metadata,
+            )
+
+        if options.headline and len(options.headline) > 25:
+            raise ValidationError("headline must be 25 characters or less")
+
+        form_data: dict[str, Any] = {}
+        if options.caption is not None:
+            form_data["caption"] = options.caption
+        if options.headline is not None:
+            form_data["headline"] = options.headline
+        if options.commit_message:
+            form_data["commit_message"] = options.commit_message
+        if options.custom_metadata:
+            form_data["nit_commit_custom"] = json.dumps(options.custom_metadata)
+
+        response = await self._request(
+            "PATCH",
+            f"{self._base_url}/assets/{nid}/",
+            data=form_data,
+            nid=nid,
+        )
+        return _to_asset(response)
+
+    async def get(self, nid: str) -> Asset:
+        """
+        Retrieves a single asset by NID (async).
+
+        Args:
+            nid: Numbers ID of the asset.
+
+        Returns:
+            Asset information.
+        """
+        if not nid:
+            raise ValidationError("nid is required")
+
+        response = await self._request(
+            "GET",
+            f"{self._base_url}/assets/{nid}/",
+            nid=nid,
+        )
+        return _to_asset(response)
+
+    async def get_history(self, nid: str) -> list[Commit]:
+        """
+        Retrieves the commit history of an asset (async).
+
+        Args:
+            nid: Numbers ID of the asset.
+
+        Returns:
+            List of Commit objects.
+        """
+        if not nid:
+            raise ValidationError("nid is required")
+
+        params = {"nid": nid}
+        if self._testnet:
+            params["testnet"] = "true"
+
+        url = f"{HISTORY_API_URL}?{urlencode(params)}"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"token {self._token}",
+        }
+
+        try:
+            response = await self._client.get(url, headers=headers)
+        except httpx.RequestError as e:
+            raise create_api_error(0, f"Network error: {e}", nid) from e
+
+        if not response.is_success:
+            raise create_api_error(
+                response.status_code,
+                "Failed to fetch asset history",
+                nid,
+            )
+
+        data = response.json()
+        return [
+            Commit(
+                asset_tree_cid=c["assetTreeCid"],
+                tx_hash=c["txHash"],
+                author=c["author"],
+                committer=c["committer"],
+                timestamp=c["timestampCreated"],
+                action=c["action"],
+            )
+            for c in data["commits"]
+        ]
+
+    async def get_asset_tree(self, nid: str) -> AssetTree:
+        """
+        Retrieves the merged asset tree containing full provenance data (async).
+
+        Args:
+            nid: Numbers ID of the asset.
+
+        Returns:
+            Merged AssetTree.
+        """
+        if not nid:
+            raise ValidationError("nid is required")
+
+        commits = await self.get_history(nid)
+
+        if len(commits) == 0:
+            raise CaptureError("No commits found for asset", "NO_COMMITS", 404)
+
+        commit_data = [
+            {
+                "assetTreeCid": c.asset_tree_cid,
+                "timestampCreated": c.timestamp,
+            }
+            for c in commits
+        ]
+
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"token {self._token}",
+        }
+
+        try:
+            response = await self._client.post(
+                MERGE_TREE_API_URL,
+                headers=headers,
+                json=commit_data,
+            )
+        except httpx.RequestError as e:
+            raise create_api_error(0, f"Network error: {e}", nid) from e
+
+        if not response.is_success:
+            raise create_api_error(
+                response.status_code,
+                "Failed to merge asset trees",
+                nid,
+            )
+
+        data = response.json()
+        merged = data.get("mergedAssetTree", data)
+
+        known_fields = {
+            "assetCid",
+            "assetSha256",
+            "creatorName",
+            "creatorWallet",
+            "createdAt",
+            "locationCreated",
+            "caption",
+            "headline",
+            "license",
+            "mimeType",
+            "nftRecord",
+            "usedBy",
+            "integrityCid",
+            "digitalSourceType",
+            "miningPreference",
+            "generatedBy",
+        }
+
+        extra = {k: v for k, v in merged.items() if k not in known_fields}
+
+        license_data = merged.get("license")
+        license_obj = None
+        if isinstance(license_data, dict):
+            license_obj = License(
+                name=license_data.get("name"),
+                document=license_data.get("document"),
+            )
+        elif isinstance(license_data, str):
+            license_obj = License(name=license_data)
+
+        return AssetTree(
+            asset_cid=merged.get("assetCid"),
+            asset_sha256=merged.get("assetSha256"),
+            creator_name=merged.get("creatorName"),
+            creator_wallet=merged.get("creatorWallet"),
+            created_at=merged.get("createdAt"),
+            location_created=merged.get("locationCreated"),
+            caption=merged.get("caption"),
+            headline=merged.get("headline"),
+            license=license_obj,
+            mime_type=merged.get("mimeType"),
+            nft_record=merged.get("nftRecord"),
+            used_by=merged.get("usedBy"),
+            integrity_cid=merged.get("integrityCid"),
+            digital_source_type=merged.get("digitalSourceType"),
+            mining_preference=merged.get("miningPreference"),
+            generated_by=merged.get("generatedBy"),
+            extra=extra,
+        )
+
+    async def search_asset(
+        self,
+        *,
+        file_url: str | None = None,
+        file: FileInput | None = None,
+        nid: str | None = None,
+        threshold: float | None = None,
+        sample_count: int | None = None,
+        options: AssetSearchOptions | None = None,
+    ) -> AssetSearchResult:
+        """
+        Searches for similar assets using image similarity (async).
+
+        Args:
+            file_url: URL of the file to search.
+            file: File to search (path, Path, bytes, bytearray, or IO[bytes]).
+            nid: Numbers ID of an existing asset to search.
+            threshold: Similarity threshold (0-1, lower means more similar).
+            sample_count: Number of results to return.
+            options: AssetSearchOptions object (alternative to individual args).
+
+        Returns:
+            Search results with precise match and similar assets.
+        """
+        if options is None:
+            options = AssetSearchOptions(
+                file_url=file_url,
+                file=file,
+                nid=nid,
+                threshold=threshold,
+                sample_count=sample_count,
+            )
+
+        if not options.file_url and not options.file and not options.nid:
+            raise ValidationError(
+                "Must provide file_url, file, or nid for asset search"
+            )
+
+        if options.threshold is not None and (
+            options.threshold < 0 or options.threshold > 1
+        ):
+            raise ValidationError("threshold must be between 0 and 1")
+
+        if options.sample_count is not None and (
+            options.sample_count < 1
+            or not isinstance(options.sample_count, int)
+        ):
+            raise ValidationError("sample_count must be a positive integer")
+
+        form_data: dict[str, Any] = {}
+        files_data: dict[str, Any] | None = None
+        _search_handle: IO[bytes] | None = None
+        if options.file_url:
+            form_data["url"] = options.file_url
+        elif options.nid:
+            form_data["nid"] = options.nid
+        elif options.file:
+            file_data, filename, mime_type = _normalize_file(options.file)
+            if isinstance(options.file, (str, Path)):
+                _search_handle = file_data  # type: ignore[assignment]
+            files_data = {"file": (filename, file_data, mime_type)}
+
+        if options.threshold is not None:
+            form_data["threshold"] = str(options.threshold)
+        if options.sample_count is not None:
+            form_data["sample_count"] = str(options.sample_count)
+
+        headers = {"Authorization": f"token {self._token}"}
+
+        try:
+            try:
+                if files_data:
+                    response = await self._client.post(
+                        ASSET_SEARCH_API_URL,
+                        headers=headers,
+                        data=form_data,
+                        files=files_data,
+                    )
+                else:
+                    response = await self._client.post(
+                        ASSET_SEARCH_API_URL,
+                        headers=headers,
+                        data=form_data,
+                    )
+            except httpx.RequestError as e:
+                raise create_api_error(0, f"Network error: {e}") from e
+
+            if not response.is_success:
+                message = f"Asset search failed with status {response.status_code}"
+                try:
+                    error_data = response.json()
+                    message = (
+                        error_data.get("message")
+                        or error_data.get("error")
+                        or message
+                    )
+                except Exception:
+                    pass
+                raise create_api_error(response.status_code, message)
+
+            data = response.json()
+            similar_matches = [
+                SimilarMatch(nid=m["nid"], distance=m["distance"])
+                for m in data.get("similar_matches", [])
+            ]
+            return AssetSearchResult(
+                precise_match=data.get("precise_match", ""),
+                input_file_mime_type=data.get("input_file_mime_type", ""),
+                similar_matches=similar_matches,
+                order_id=data.get("order_id", ""),
+            )
+        finally:
+            if _search_handle is not None:
+                _search_handle.close()
+
+    async def search_nft(self, nid: str) -> NftSearchResult:
+        """
+        Searches for NFTs across multiple blockchains that match an asset (async).
+
+        Args:
+            nid: Numbers ID of the asset to search for.
+
+        Returns:
+            NFT records found across different chains.
+        """
+        if not nid:
+            raise ValidationError("nid is required for NFT search")
+
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"token {self._token}",
+        }
+
+        try:
+            response = await self._client.post(
+                NFT_SEARCH_API_URL,
+                headers=headers,
+                json={"nid": nid},
+            )
+        except httpx.RequestError as e:
+            raise create_api_error(0, f"Network error: {e}", nid) from e
+
+        if not response.is_success:
+            message = f"NFT search failed with status {response.status_code}"
+            try:
+                error_data = response.json()
+                message = (
+                    error_data.get("message")
+                    or error_data.get("error")
+                    or message
+                )
+            except Exception:
+                pass
+            raise create_api_error(response.status_code, message, nid)
+
+        data = response.json()
+        records = [
+            NftRecord(
+                token_id=r["token_id"],
+                contract=r["contract"],
+                network=r["network"],
+                owner=r.get("owner"),
+            )
+            for r in data.get("records", [])
+        ]
         return NftSearchResult(
             records=records,
             order_id=data.get("order_id", ""),

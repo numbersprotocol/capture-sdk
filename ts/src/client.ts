@@ -105,7 +105,36 @@ async function normalizeFile(
     return { data, filename: options.filename, mimeType }
   }
 
-  // 4. Buffer or Uint8Array
+  // 4. ReadableStream
+  if (typeof ReadableStream !== 'undefined' && input instanceof ReadableStream) {
+    if (!options?.filename) {
+      throw new ValidationError('filename is required for ReadableStream input')
+    }
+    // The Web Crypto API does not support incremental SHA-256, and FormData
+    // does not accept ReadableStream as a file part in all environments.
+    // We buffer the stream into a Uint8Array for consistent processing.
+    const reader = input.getReader()
+    const chunks: Uint8Array[] = []
+    let totalLength = 0
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (value) {
+        chunks.push(value)
+        totalLength += value.length
+      }
+    }
+    const data = new Uint8Array(totalLength)
+    let offset = 0
+    for (const chunk of chunks) {
+      data.set(chunk, offset)
+      offset += chunk.length
+    }
+    const mimeType = getMimeType(options.filename)
+    return { data, filename: options.filename, mimeType }
+  }
+
+  // 5. Buffer or Uint8Array
   if (!options?.filename) {
     throw new ValidationError('filename is required for binary input')
   }

@@ -6,16 +6,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 # Flexible file input type - SDK handles all conversions internally
-FileInput = str | Path | bytes | bytearray
+FileInput = str | Path | bytes | bytearray | IO[bytes]
 """
 Supported file input types:
 - str: File path
 - Path: pathlib.Path object
 - bytes: Binary data
 - bytearray: Mutable binary data
+- IO[bytes]: File-like object (enables streaming upload for large files)
 """
 
 
