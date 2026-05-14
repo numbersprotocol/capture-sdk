@@ -22,10 +22,22 @@ export interface CaptureOptions {
 
 /**
  * Options for signing asset registration.
+ * Provide either a `privateKey` (the key is held in memory only for the duration of signing)
+ * or a `signer` callback to keep the private key out of this process entirely.
  */
 export interface SignOptions {
   /** Ethereum private key for EIP-191 signing */
-  privateKey: string
+  privateKey?: string
+  /**
+   * Custom signer callback – use this to keep the private key out of the SDK process.
+   * The callback receives the hex-encoded integrity hash and must return an EIP-191 signature.
+   */
+  signer?: (message: string) => Promise<string>
+  /**
+   * Ethereum address corresponding to the `signer` callback.
+   * Required when using the `signer` callback.
+   */
+  address?: string
 }
 
 /**
@@ -54,8 +66,8 @@ export interface UpdateOptions {
   headline?: string
   /** Description of the changes */
   commitMessage?: string
-  /** Custom metadata fields */
-  customMetadata?: Record<string, unknown>
+  /** Custom metadata fields (values must be string, number, or boolean; max 10 KB serialized) */
+  customMetadata?: Record<string, string | number | boolean>
 }
 
 /**

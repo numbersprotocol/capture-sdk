@@ -5,10 +5,11 @@ Main Capture SDK client.
 from __future__ import annotations
 
 import json
+import logging
 import mimetypes
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 import httpx
 
@@ -29,6 +30,8 @@ from .types import (
     SimilarMatch,
     UpdateOptions,
 )
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_BASE_URL = "https://api.numbersprotocol.io/api/v3"
 HISTORY_API_URL = "https://e23hi68y55.execute-api.us-east-1.amazonaws.com/default/get-commits-storage-backend-jade-near"
@@ -164,6 +167,15 @@ class Capture:
     def __exit__(self, *args: Any) -> None:
         self.close()
 
+    def __repr__(self) -> str:
+        if not self._token:
+            masked = "***"
+        elif len(self._token) < 4:
+            masked = "*" * len(self._token)
+        else:
+            masked = f"{'*' * (len(self._token) - 4)}{self._token[-4:]}"
+        return f"Capture(token='{masked}', base_url='{self._base_url}')"
+
     def close(self) -> None:
         """Close the HTTP client."""
         self._client.close()
@@ -213,8 +225,8 @@ class Capture:
             try:
                 error_data = response.json()
                 message = error_data.get("detail") or error_data.get("message") or message
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Could not parse error response body: %s", exc)
             raise create_api_error(response.status_code, message, nid)
 
         result: dict[str, Any] = response.json()
@@ -296,11 +308,11 @@ class Capture:
         if options.headline:
             form_data["headline"] = options.headline
 
-        # Handle signing if private key provided
-        if options.sign and options.sign.private_key:
+        # Handle signing if sign options provided (private_key or custom signer)
+        if options.sign and (options.sign.private_key or options.sign.signer):
             proof_hash = sha256(data)
             proof = create_integrity_proof(proof_hash, mime_type)
-            signature = sign_integrity_proof(proof, options.sign.private_key)
+            signature = sign_integrity_proof(proof, options.sign)
 
             proof_dict = {
                 "proof_hash": proof.proof_hash,
@@ -336,7 +348,7 @@ class Capture:
         caption: str | None = None,
         headline: str | None = None,
         commit_message: str | None = None,
-        custom_metadata: dict[str, Any] | None = None,
+        custom_metadata: dict[str, str | int | float | bool] | None = None,
         options: UpdateOptions | None = None,
     ) -> Asset:
         """
@@ -384,7 +396,12 @@ class Capture:
         if options.commit_message:
             form_data["commit_message"] = options.commit_message
         if options.custom_metadata:
-            form_data["nit_commit_custom"] = json.dumps(options.custom_metadata)
+            serialized = json.dumps(options.custom_metadata)
+            if len(serialized.encode("utf-8")) > 10 * 1024:
+                raise ValidationError(
+                    "custom_metadata must not exceed 10 KB when serialized"
+                )
+            form_data["nit_commit_custom"] = serialized
 
         response = self._request(
             "PATCH",
@@ -661,6 +678,9 @@ class Capture:
         # Add input source
         files_data: dict[str, Any] | None = None
         if options.file_url:
+            parsed = urlparse(options.file_url)
+            if parsed.scheme not in ("http", "https"):
+                raise ValidationError("file_url must use http or https scheme")
             form_data["url"] = options.file_url
         elif options.nid:
             form_data["nid"] = options.nid
@@ -703,8 +723,8 @@ class Capture:
                     or error_data.get("error")
                     or message
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Could not parse asset search error response body: %s", exc)
             raise create_api_error(response.status_code, message)
 
         data = response.json()
@@ -763,8 +783,8 @@ class Capture:
                     or error_data.get("error")
                     or message
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Could not parse NFT search error response body: %s", exc)
             raise create_api_error(response.status_code, message, nid)
 
         data = response.json()

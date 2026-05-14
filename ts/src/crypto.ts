@@ -1,5 +1,5 @@
 import { Wallet, verifyMessage } from 'ethers'
-import type { IntegrityProof, AssetSignature } from './types.js'
+import type { IntegrityProof, AssetSignature, SignOptions } from './types.js'
 
 /**
  * Computes SHA-256 hash of data using Web Crypto API.
@@ -32,27 +32,50 @@ export function createIntegrityProof(
 
 /**
  * Signs an integrity proof using EIP-191 standard.
- * Returns the signature data required for asset registration.
+ * Accepts either a raw private key string or a custom signer callback (via SignOptions)
+ * to minimise the lifetime of key material in memory.
+ *
+ * @param proof - Integrity proof to sign.
+ * @param privateKeyOrOptions - Ethereum private key string **or** a SignOptions object
+ *   with a `signer` callback and `address`.
  */
 export async function signIntegrityProof(
   proof: IntegrityProof,
-  privateKey: string
+  privateKeyOrOptions: string | SignOptions
 ): Promise<AssetSignature> {
-  const wallet = new Wallet(privateKey)
-
   // Compute integrity hash of the signed metadata JSON
   const proofJson = JSON.stringify(proof)
   const proofBytes = new TextEncoder().encode(proofJson)
   const integritySha = await sha256(proofBytes)
 
-  // Sign the integrity hash using EIP-191
-  const signature = await wallet.signMessage(integritySha)
+  let signature: string
+  let address: string
+
+  if (typeof privateKeyOrOptions === 'string') {
+    // Legacy path: private key passed directly
+    const wallet = new Wallet(privateKeyOrOptions)
+    signature = await wallet.signMessage(integritySha)
+    address = wallet.address
+  } else if (privateKeyOrOptions.signer && privateKeyOrOptions.address) {
+    // Custom signer path: private key never enters this process
+    signature = await privateKeyOrOptions.signer(integritySha)
+    address = privateKeyOrOptions.address
+  } else if (privateKeyOrOptions.privateKey) {
+    // SignOptions with privateKey field
+    const wallet = new Wallet(privateKeyOrOptions.privateKey)
+    signature = await wallet.signMessage(integritySha)
+    address = wallet.address
+  } else {
+    throw new Error(
+      'signIntegrityProof: provide either privateKey or both signer and address'
+    )
+  }
 
   return {
     proofHash: proof.proof_hash,
     provider: 'capture-sdk',
     signature,
-    publicKey: wallet.address,
+    publicKey: address,
     integritySha,
   }
 }
