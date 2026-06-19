@@ -142,6 +142,10 @@ export class Capture {
   private readonly token: string
   private readonly baseUrl: string
   private readonly testnet: boolean
+  private readonly historyApiUrl: string
+  private readonly mergeTreeApiUrl: string
+  private readonly assetSearchApiUrl: string
+  private readonly nftSearchApiUrl: string
 
   constructor(options: CaptureOptions) {
     if (!options.token) {
@@ -150,6 +154,10 @@ export class Capture {
     this.token = options.token
     this.testnet = options.testnet ?? false
     this.baseUrl = options.baseUrl ?? DEFAULT_BASE_URL
+    this.historyApiUrl = options.historyApiUrl ?? HISTORY_API_URL
+    this.mergeTreeApiUrl = options.mergeTreeApiUrl ?? MERGE_TREE_API_URL
+    this.assetSearchApiUrl = options.assetSearchApiUrl ?? ASSET_SEARCH_API_URL
+    this.nftSearchApiUrl = options.nftSearchApiUrl ?? NFT_SEARCH_API_URL
   }
 
   /**
@@ -365,7 +373,7 @@ export class Capture {
       throw new ValidationError('nid is required')
     }
 
-    const url = new URL(HISTORY_API_URL)
+    const url = new URL(this.historyApiUrl)
     url.searchParams.set('nid', nid)
     if (this.testnet) {
       url.searchParams.set('testnet', 'true')
@@ -427,7 +435,7 @@ export class Capture {
       timestampCreated: c.timestamp,
     }))
 
-    const response = await fetch(MERGE_TREE_API_URL, {
+    const response = await fetch(this.mergeTreeApiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -517,7 +525,7 @@ export class Capture {
     }
 
     // Verify Engine API requires token in Authorization header, not form data
-    const response = await fetch(ASSET_SEARCH_API_URL, {
+    const response = await fetch(this.assetSearchApiUrl, {
       method: 'POST',
       headers: {
         Authorization: `token ${this.token}`,
@@ -573,7 +581,7 @@ export class Capture {
       throw new ValidationError('nid is required for NFT search')
     }
 
-    const response = await fetch(NFT_SEARCH_API_URL, {
+    const response = await fetch(this.nftSearchApiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

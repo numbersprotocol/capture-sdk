@@ -134,6 +134,10 @@ class Capture:
         *,
         testnet: bool = False,
         base_url: str | None = None,
+        history_api_url: str | None = None,
+        merge_tree_api_url: str | None = None,
+        asset_search_api_url: str | None = None,
+        nft_search_api_url: str | None = None,
         options: CaptureOptions | None = None,
     ):
         """
@@ -143,12 +147,20 @@ class Capture:
             token: Authentication token for API access.
             testnet: Use testnet environment (default: False).
             base_url: Custom base URL (overrides testnet setting).
+            history_api_url: Override URL for the history API endpoint.
+            merge_tree_api_url: Override URL for the merge-tree API endpoint.
+            asset_search_api_url: Override URL for the asset search API endpoint.
+            nft_search_api_url: Override URL for the NFT search API endpoint.
             options: CaptureOptions object (alternative to individual args).
         """
         if options:
             token = options.token
             testnet = options.testnet
             base_url = options.base_url
+            history_api_url = options.history_api_url
+            merge_tree_api_url = options.merge_tree_api_url
+            asset_search_api_url = options.asset_search_api_url
+            nft_search_api_url = options.nft_search_api_url
 
         if not token:
             raise ValidationError("token is required")
@@ -156,6 +168,10 @@ class Capture:
         self._token = token
         self._testnet = testnet
         self._base_url = base_url or DEFAULT_BASE_URL
+        self._history_api_url = history_api_url or HISTORY_API_URL
+        self._merge_tree_api_url = merge_tree_api_url or MERGE_TREE_API_URL
+        self._asset_search_api_url = asset_search_api_url or ASSET_SEARCH_API_URL
+        self._nft_search_api_url = nft_search_api_url or NFT_SEARCH_API_URL
         self._client = httpx.Client(timeout=30.0)
 
     def __enter__(self) -> Capture:
@@ -444,7 +460,7 @@ class Capture:
         if self._testnet:
             params["testnet"] = "true"
 
-        url = f"{HISTORY_API_URL}?{urlencode(params)}"
+        url = f"{self._history_api_url}?{urlencode(params)}"
 
         headers = {
             "Content-Type": "application/json",
@@ -518,7 +534,7 @@ class Capture:
 
         try:
             response = self._client.post(
-                MERGE_TREE_API_URL,
+                self._merge_tree_api_url,
                 headers=headers,
                 json=commit_data,
             )
@@ -680,14 +696,14 @@ class Capture:
         try:
             if files_data:
                 response = self._client.post(
-                    ASSET_SEARCH_API_URL,
+                    self._asset_search_api_url,
                     headers=headers,
                     data=form_data,
                     files=files_data,
                 )
             else:
                 response = self._client.post(
-                    ASSET_SEARCH_API_URL,
+                    self._asset_search_api_url,
                     headers=headers,
                     data=form_data,
                 )
@@ -747,7 +763,7 @@ class Capture:
 
         try:
             response = self._client.post(
-                NFT_SEARCH_API_URL,
+                self._nft_search_api_url,
                 headers=headers,
                 json={"nid": nid},
             )

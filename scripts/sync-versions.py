@@ -100,20 +100,37 @@ def bump_version(current: str, bump_type: str) -> str:
         raise ValueError(f"Invalid bump type: {bump_type}")
 
 
+def get_py_init_version() -> str:
+    """Get version from Python __init__.py."""
+    content = PY_INIT_FILE.read_text()
+    match = re.search(r'^__version__\s*=\s*"([^"]+)"', content, re.MULTILINE)
+    if match:
+        return match.group(1)
+    raise ValueError("Could not find __version__ in __init__.py")
+
+
 def check_versions() -> bool:
     """Check if versions are in sync."""
     ts_version = get_ts_version()
     py_version = get_py_version()
+    py_init_version = get_py_init_version()
 
     print("Current versions:")
-    print(f"  TypeScript: {ts_version}")
-    print(f"  Python:     {py_version}")
+    print(f"  TypeScript (package.json):    {ts_version}")
+    print(f"  Python (pyproject.toml):      {py_version}")
+    print(f"  Python (__init__.py):         {py_init_version}")
 
-    if ts_version == py_version:
+    if ts_version == py_version == py_init_version:
         print("\n✓ Versions are in sync")
         return True
     else:
         print("\n✗ Versions are out of sync!")
+        if ts_version != py_version:
+            print(f"  package.json ({ts_version}) != pyproject.toml ({py_version})")
+        if ts_version != py_init_version:
+            print(f"  package.json ({ts_version}) != __init__.py ({py_init_version})")
+        if py_version != py_init_version:
+            print(f"  pyproject.toml ({py_version}) != __init__.py ({py_init_version})")
         return False
 
 

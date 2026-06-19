@@ -337,3 +337,195 @@ describe('Asset Search Validation', () => {
     ).rejects.toThrow('sampleCount must be a positive integer')
   })
 })
+
+describe('URL overrides', () => {
+  let originalFetch: typeof global.fetch
+
+  beforeEach(() => {
+    originalFetch = global.fetch
+  })
+
+  afterEach(() => {
+    global.fetch = originalFetch
+    vi.restoreAllMocks()
+  })
+
+  it('should use custom assetSearchApiUrl when provided', async () => {
+    const customUrl = 'https://custom-search.example.com/search'
+    const capture = new Capture({
+      token: 'test-token',
+      assetSearchApiUrl: customUrl,
+    })
+
+    const mockFetch = vi.fn<typeof fetch>().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        precise_match: '',
+        input_file_mime_type: '',
+        similar_matches: [],
+        order_id: 'test-order',
+      }),
+    } as Response)
+
+    global.fetch = mockFetch
+
+    await capture.searchAsset({ nid: TEST_NID })
+
+    const [url] = mockFetch.mock.calls[0]
+    expect(url).toBe(customUrl)
+  })
+
+  it('should use custom nftSearchApiUrl when provided', async () => {
+    const customUrl = 'https://custom-nft.example.com/search'
+    const capture = new Capture({
+      token: 'test-token',
+      nftSearchApiUrl: customUrl,
+    })
+
+    const mockFetch = vi.fn<typeof fetch>().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        records: [],
+        order_id: 'test-order',
+      }),
+    } as Response)
+
+    global.fetch = mockFetch
+
+    await capture.searchNft(TEST_NID)
+
+    const [url] = mockFetch.mock.calls[0]
+    expect(url).toBe(customUrl)
+  })
+})
+
+describe('get()', () => {
+  let originalFetch: typeof global.fetch
+
+  beforeEach(() => {
+    originalFetch = global.fetch
+  })
+
+  afterEach(() => {
+    global.fetch = originalFetch
+    vi.restoreAllMocks()
+  })
+
+  it('should fetch asset by NID', async () => {
+    const mockFetch = vi.fn<typeof fetch>().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: TEST_NID,
+        asset_file_name: 'photo.jpg',
+        asset_file_mime_type: 'image/jpeg',
+        caption: 'My photo',
+        headline: 'Demo',
+      }),
+    } as Response)
+
+    global.fetch = mockFetch
+
+    const capture = new Capture({ token: 'test-token' })
+    const asset = await capture.get(TEST_NID)
+
+    expect(asset.nid).toBe(TEST_NID)
+    expect(asset.filename).toBe('photo.jpg')
+    expect(asset.mimeType).toBe('image/jpeg')
+    expect(asset.caption).toBe('My photo')
+    expect(asset.headline).toBe('Demo')
+  })
+
+  it('should throw ValidationError when NID is empty', async () => {
+    const capture = new Capture({ token: 'test-token' })
+    await expect(capture.get('')).rejects.toThrow('nid is required')
+  })
+})
+
+describe('searchNft()', () => {
+  let originalFetch: typeof global.fetch
+
+  beforeEach(() => {
+    originalFetch = global.fetch
+  })
+
+  afterEach(() => {
+    global.fetch = originalFetch
+    vi.restoreAllMocks()
+  })
+
+  it('should throw ValidationError when NID is empty', async () => {
+    const capture = new Capture({ token: 'test-token' })
+    await expect(capture.searchNft('')).rejects.toThrow(
+      'nid is required for NFT search'
+    )
+  })
+
+  it('should return NFT search result', async () => {
+    const mockFetch = vi.fn<typeof fetch>().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        records: [
+          {
+            token_id: '1',
+            contract: '0xabc',
+            network: 'ethereum',
+            owner: '0xowner',
+          },
+        ],
+        order_id: 'order_nft',
+      }),
+    } as Response)
+
+    global.fetch = mockFetch
+
+    const capture = new Capture({ token: 'test-token' })
+    const result = await capture.searchNft(TEST_NID)
+
+    expect(result.records).toHaveLength(1)
+    expect(result.records[0].tokenId).toBe('1')
+    expect(result.records[0].contract).toBe('0xabc')
+    expect(result.records[0].network).toBe('ethereum')
+    expect(result.orderId).toBe('order_nft')
+  })
+})
+
+describe('register() validation', () => {
+  it('should throw ValidationError when headline exceeds 25 chars', async () => {
+    const capture = new Capture({ token: 'test-token' })
+    const longHeadline = 'a'.repeat(26)
+
+    await expect(
+      capture.register(new Uint8Array([1, 2, 3]), {
+        headline: longHeadline,
+        filename: 'test.bin',
+      })
+    ).rejects.toThrow('headline must be 25 characters or less')
+  })
+
+  it('should throw ValidationError for empty file', async () => {
+    const capture = new Capture({ token: 'test-token' })
+
+    await expect(
+      capture.register(new Uint8Array(0), { filename: 'empty.bin' })
+    ).rejects.toThrow('file cannot be empty')
+  })
+})
+
+describe('update() validation', () => {
+  it('should throw ValidationError when NID is empty', async () => {
+    const capture = new Capture({ token: 'test-token' })
+
+    await expect(capture.update('', { caption: 'test' })).rejects.toThrow(
+      'nid is required'
+    )
+  })
+
+  it('should throw ValidationError when headline exceeds 25 chars', async () => {
+    const capture = new Capture({ token: 'test-token' })
+    const longHeadline = 'a'.repeat(26)
+
+    await expect(
+      capture.update(TEST_NID, { headline: longHeadline })
+    ).rejects.toThrow('headline must be 25 characters or less')
+  })
+})
