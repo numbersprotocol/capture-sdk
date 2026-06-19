@@ -32,6 +32,16 @@ class TestCaptureClient:
         assert capture._base_url == "https://custom.api.com"
         capture.close()
 
+    def test_init_with_http_base_url_raises_error(self) -> None:
+        """Test that http base_url raises ValidationError."""
+        with pytest.raises(ValidationError, match="base_url must use HTTPS"):
+            Capture(token="test-token", base_url="http://custom.api.com")
+
+    def test_init_with_non_https_base_url_raises_error(self) -> None:
+        """Test that non-https base_url raises ValidationError."""
+        with pytest.raises(ValidationError, match="base_url must use HTTPS"):
+            Capture(token="test-token", base_url="ftp://custom.api.com")
+
     def test_context_manager(self) -> None:
         """Test client as context manager."""
         with Capture(token="test-token") as capture:

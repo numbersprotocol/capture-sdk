@@ -153,6 +153,9 @@ class Capture:
         if not token:
             raise ValidationError("token is required")
 
+        if base_url is not None and not base_url.startswith("https://"):
+            raise ValidationError("base_url must use HTTPS")
+
         self._token = token
         self._testnet = testnet
         self._base_url = base_url or DEFAULT_BASE_URL
@@ -448,7 +451,6 @@ class Capture:
 
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"token {self._token}",
         }
 
         try:
@@ -513,7 +515,6 @@ class Capture:
 
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"token {self._token}",
         }
 
         try:

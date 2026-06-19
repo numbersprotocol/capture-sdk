@@ -25,6 +25,23 @@ describe('Capture Client', () => {
     it('should throw error without token', () => {
       expect(() => new Capture({ token: '' })).toThrow('token is required')
     })
+
+    it('should accept https baseUrl', () => {
+      const capture = new Capture({ token: 'test-token', baseUrl: 'https://custom.api.com/v3' })
+      expect(capture).toBeInstanceOf(Capture)
+    })
+
+    it('should reject http baseUrl', () => {
+      expect(() => new Capture({ token: 'test-token', baseUrl: 'http://custom.api.com/v3' })).toThrow(
+        'baseUrl must use HTTPS'
+      )
+    })
+
+    it('should reject non-https baseUrl', () => {
+      expect(() => new Capture({ token: 'test-token', baseUrl: 'ftp://custom.api.com/v3' })).toThrow(
+        'baseUrl must use HTTPS'
+      )
+    })
   })
 })
 
