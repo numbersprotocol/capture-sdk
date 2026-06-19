@@ -12,7 +12,7 @@ from urllib.parse import urlencode
 
 import httpx
 
-from .crypto import create_integrity_proof, sha256, sign_integrity_proof
+from .crypto import create_integrity_proof, sha256, sign_integrity_proof, _serialize_proof
 from .errors import CaptureError, ValidationError, create_api_error
 from .types import (
     Asset,
@@ -157,6 +157,13 @@ class Capture:
         self._testnet = testnet
         self._base_url = base_url or DEFAULT_BASE_URL
         self._client = httpx.Client(timeout=30.0)
+
+    def __del__(self) -> None:
+        """Close the HTTP client when garbage collected."""
+        try:
+            self._client.close()
+        except Exception:
+            pass
 
     def __enter__(self) -> Capture:
         return self
@@ -307,7 +314,7 @@ class Capture:
                 "asset_mime_type": proof.asset_mime_type,
                 "created_at": proof.created_at,
             }
-            form_data["signed_metadata"] = json.dumps(proof_dict)
+            form_data["signed_metadata"] = _serialize_proof(proof_dict)
 
             sig_dict = {
                 "proofHash": signature.proof_hash,

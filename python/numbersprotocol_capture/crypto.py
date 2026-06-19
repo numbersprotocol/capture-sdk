@@ -45,6 +45,11 @@ def create_integrity_proof(proof_hash: str, mime_type: str) -> IntegrityProof:
     )
 
 
+def _serialize_proof(proof_dict: dict) -> str:
+    """Serializes a proof dict to a canonical JSON string with sorted keys and compact separators."""
+    return json.dumps(proof_dict, sort_keys=True, separators=(",", ":"))
+
+
 def sign_integrity_proof(proof: IntegrityProof, private_key: str) -> AssetSignature:
     """
     Signs an integrity proof using EIP-191 standard.
@@ -68,7 +73,7 @@ def sign_integrity_proof(proof: IntegrityProof, private_key: str) -> AssetSignat
         "asset_mime_type": proof.asset_mime_type,
         "created_at": proof.created_at,
     }
-    proof_json = json.dumps(proof_dict, separators=(",", ":"))
+    proof_json = _serialize_proof(proof_dict)
     integrity_sha = sha256(proof_json.encode("utf-8"))
 
     # Sign the integrity hash using EIP-191
