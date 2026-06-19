@@ -337,3 +337,106 @@ describe('Asset Search Validation', () => {
     ).rejects.toThrow('sampleCount must be a positive integer')
   })
 })
+
+describe('NFT Search Security', () => {
+  const NFT_SEARCH_API_URL = 'https://eofveg1f59hrbn.m.pipedream.net'
+  let originalFetch: typeof global.fetch
+
+  beforeEach(() => {
+    originalFetch = global.fetch
+  })
+
+  afterEach(() => {
+    global.fetch = originalFetch
+    vi.restoreAllMocks()
+  })
+
+  it('should NOT send Authorization header to the Pipedream endpoint', async () => {
+    const testToken = 'my-secret-token'
+    const capture = new Capture({ token: testToken })
+
+    const mockFetch = vi.fn<typeof fetch>().mockResolvedValue({
+      ok: true,
+      headers: { get: () => null } as unknown as Headers,
+      body: null,
+      json: async () => ({ records: [], order_id: 'order_1' }),
+    } as Response)
+
+    global.fetch = mockFetch
+
+    await capture.searchNft('bafybeitest')
+
+    const [url, options] = mockFetch.mock.calls[0]
+    expect(url).toBe(NFT_SEARCH_API_URL)
+
+    const headers = options?.headers as Record<string, string>
+    expect(headers?.Authorization).toBeUndefined()
+  })
+})
+
+describe('Response Size Limit', () => {
+  let originalFetch: typeof global.fetch
+
+  beforeEach(() => {
+    originalFetch = global.fetch
+  })
+
+  afterEach(() => {
+    global.fetch = originalFetch
+    vi.restoreAllMocks()
+  })
+
+  it('should throw NetworkError when Content-Length header exceeds limit', async () => {
+    const capture = new Capture({ token: 'test-token' })
+    const MAX_RESPONSE_SIZE = 10 * 1024 * 1024
+
+    const mockFetch = vi.fn<typeof fetch>().mockResolvedValue({
+      ok: true,
+      headers: {
+        get: (name: string) =>
+          name === 'content-length' ? String(MAX_RESPONSE_SIZE + 1) : null,
+      } as unknown as Headers,
+      body: null,
+      json: async () => ({
+        precise_match: '',
+        input_file_mime_type: '',
+        similar_matches: [],
+        order_id: '',
+      }),
+    } as Response)
+
+    global.fetch = mockFetch
+
+    await expect(capture.searchAsset({ nid: TEST_NID })).rejects.toThrow(
+      'Response body too large'
+    )
+  })
+
+  it('should throw NetworkError when streaming body exceeds limit', async () => {
+    const capture = new Capture({ token: 'test-token' })
+    const MAX_RESPONSE_SIZE = 10 * 1024 * 1024
+    const oversizedChunk = new Uint8Array(MAX_RESPONSE_SIZE + 1)
+
+    let readerReleased = false
+    const mockReader = {
+      read: vi
+        .fn()
+        .mockResolvedValueOnce({ done: false, value: oversizedChunk })
+        .mockResolvedValue({ done: true, value: undefined }),
+      releaseLock: () => { readerReleased = true },
+    }
+
+    const mockFetch = vi.fn<typeof fetch>().mockResolvedValue({
+      ok: true,
+      headers: { get: () => null } as unknown as Headers,
+      body: { getReader: () => mockReader } as unknown as ReadableStream<Uint8Array>,
+    } as Response)
+
+    global.fetch = mockFetch
+
+    await expect(capture.searchAsset({ nid: TEST_NID })).rejects.toThrow(
+      'Response body too large'
+    )
+    expect(readerReleased).toBe(true)
+  })
+})

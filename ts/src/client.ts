@@ -18,6 +18,7 @@ import {
   ValidationError,
   createApiError,
   CaptureError,
+  NetworkError,
 } from './errors.js'
 import { sha256, createIntegrityProof, signIntegrityProof } from './crypto.js'
 
@@ -29,6 +30,9 @@ const MERGE_TREE_API_URL =
 const ASSET_SEARCH_API_URL =
   'https://us-central1-numbers-protocol-api.cloudfunctions.net/asset-search'
 const NFT_SEARCH_API_URL = 'https://eofveg1f59hrbn.m.pipedream.net'
+
+/** Maximum allowed response body size (10 MB) */
+const MAX_RESPONSE_SIZE = 10 * 1024 * 1024
 
 /** Common MIME types by extension */
 const MIME_TYPES: Record<string, string> = {
@@ -46,6 +50,48 @@ const MIME_TYPES: Record<string, string> = {
   pdf: 'application/pdf',
   json: 'application/json',
   txt: 'text/plain',
+}
+
+/**
+ * Reads response body as JSON while enforcing a maximum size limit.
+ * Throws NetworkError if the response body exceeds MAX_RESPONSE_SIZE.
+ */
+async function readJsonWithSizeLimit(response: Response): Promise<unknown> {
+  const contentLength = response.headers?.get('content-length')
+  if (contentLength !== null && parseInt(contentLength, 10) > MAX_RESPONSE_SIZE) {
+    throw new NetworkError('Response body too large')
+  }
+
+  if (!response.body) {
+    return response.json()
+  }
+
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let totalSize = 0
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      totalSize += value.byteLength
+      if (totalSize > MAX_RESPONSE_SIZE) {
+        throw new NetworkError('Response body too large')
+      }
+      chunks.push(value)
+    }
+  } finally {
+    reader.releaseLock()
+  }
+
+  const allChunks = new Uint8Array(totalSize)
+  let offset = 0
+  for (const chunk of chunks) {
+    allChunks.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+
+  return JSON.parse(new TextDecoder().decode(allChunks))
 }
 
 /**
@@ -182,15 +228,15 @@ export class Capture {
     if (!response.ok) {
       let message = `API request failed with status ${response.status}`
       try {
-        const errorData = await response.json()
-        message = errorData.detail || errorData.message || message
+        const errorData = await readJsonWithSizeLimit(response) as Record<string, unknown>
+        message = (errorData?.detail as string) || (errorData?.message as string) || message
       } catch {
         // Use default message
       }
       throw createApiError(response.status, message, nid)
     }
 
-    return response.json() as Promise<T>
+    return readJsonWithSizeLimit(response) as Promise<T>
   }
 
   /**
@@ -383,7 +429,7 @@ export class Capture {
       throw createApiError(response.status, 'Failed to fetch asset history', nid)
     }
 
-    const data = (await response.json()) as HistoryApiResponse
+    const data = (await readJsonWithSizeLimit(response)) as HistoryApiResponse
 
     return data.commits.map((c) => ({
       assetTreeCid: c.assetTreeCid,
@@ -440,7 +486,7 @@ export class Capture {
       throw createApiError(response.status, 'Failed to merge asset trees', nid)
     }
 
-    const data = await response.json()
+    const data = await readJsonWithSizeLimit(response) as Record<string, unknown>
 
     // The API returns { mergedAssetTree: {...}, assetTrees: [...] }
     // We return the merged tree
@@ -528,18 +574,18 @@ export class Capture {
     if (!response.ok) {
       let message = `Asset search failed with status ${response.status}`
       try {
-        const errorData = await response.json()
-        message = errorData.message || errorData.error || message
+        const errorData = await readJsonWithSizeLimit(response) as Record<string, unknown>
+        message = (errorData?.message as string) || (errorData?.error as string) || message
       } catch {
         // Use default message
       }
       throw createApiError(response.status, message)
     }
 
-    const data = await response.json()
+    const data = await readJsonWithSizeLimit(response) as Record<string, unknown>
 
     // Map response to our type
-    const similarMatches: SimilarMatch[] = (data.similar_matches || []).map(
+    const similarMatches: SimilarMatch[] = ((data.similar_matches as Array<{ nid: string; distance: number }>) || []).map(
       (m: { nid: string; distance: number }) => ({
         nid: m.nid,
         distance: m.distance,
@@ -547,10 +593,10 @@ export class Capture {
     )
 
     return {
-      preciseMatch: data.precise_match || '',
-      inputFileMimeType: data.input_file_mime_type || '',
+      preciseMatch: (data.precise_match as string) || '',
+      inputFileMimeType: (data.input_file_mime_type as string) || '',
       similarMatches,
-      orderId: data.order_id || '',
+      orderId: (data.order_id as string) || '',
     }
   }
 
@@ -577,7 +623,6 @@ export class Capture {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `token ${this.token}`,
       },
       body: JSON.stringify({ nid }),
     })
@@ -585,18 +630,23 @@ export class Capture {
     if (!response.ok) {
       let message = `NFT search failed with status ${response.status}`
       try {
-        const errorData = await response.json()
-        message = errorData.message || errorData.error || message
+        const errorData = await readJsonWithSizeLimit(response) as Record<string, unknown>
+        message = (errorData?.message as string) || (errorData?.error as string) || message
       } catch {
         // Use default message
       }
       throw createApiError(response.status, message, nid)
     }
 
-    const data = await response.json()
+    const data = await readJsonWithSizeLimit(response) as Record<string, unknown>
 
     // Map response to our type
-    const records: NftRecord[] = (data.records || []).map(
+    const records: NftRecord[] = ((data.records as Array<{
+      token_id: string
+      contract: string
+      network: string
+      owner?: string
+    }>) || []).map(
       (r: {
         token_id: string
         contract: string
@@ -612,7 +662,7 @@ export class Capture {
 
     return {
       records,
-      orderId: data.order_id || '',
+      orderId: (data.order_id as string) || '',
     }
   }
 }
