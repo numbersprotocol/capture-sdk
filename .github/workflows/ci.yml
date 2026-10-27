@@ -12,18 +12,6 @@ jobs:
     name: Version Sync Check
     runs-on: ubuntu-latest
     steps:
-      - &verify-actions-node
-        name: Verify Actions Node.js security version
-        working-directory: ${{ runner.temp }}
-        run: |
-          worker_executable=$(readlink -f "/proc/$PPID/exe")
-          actions_node="$(dirname "$worker_executable")/../externals/node24/bin/node"
-          "$actions_node" -e '
-            console.log(`Actions runtime: ${process.version}`);
-            const [major, minor, patch] = process.versions.node.split(".").map(Number);
-            if (major !== 24 || minor < 22 || (minor === 22 && patch < 1)) process.exit(1);
-          '
-
       - uses: actions/checkout@v5
 
       - name: Set up Python
@@ -39,7 +27,6 @@ jobs:
     name: Feature Parity Check
     runs-on: ubuntu-latest
     steps:
-      - *verify-actions-node
       - uses: actions/checkout@v5
 
       - name: Set up Python
@@ -62,7 +49,6 @@ jobs:
       run:
         working-directory: ts
     steps:
-      - *verify-actions-node
       - uses: actions/checkout@v5
 
       - name: Set up Node.js
@@ -71,6 +57,13 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
           cache-dependency-path: ts/package-lock.json
+
+      - name: Verify Node.js version
+        env:
+          EXPECTED_NODE_VERSION: ${{ matrix.node-version }}
+        run: |
+          node -e 'console.log(`SDK runtime: ${process.version}`); require("node:assert/strict").equal(process.versions.node, process.env.EXPECTED_NODE_VERSION)'
+          npm --version
 
       - name: Install dependencies
         run: npm ci
@@ -98,7 +91,6 @@ jobs:
       run:
         working-directory: python
     steps:
-      - *verify-actions-node
       - uses: actions/checkout@v5
 
       - name: Set up Python ${{ matrix.python-version }}
