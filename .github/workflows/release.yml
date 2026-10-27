@@ -13,6 +13,17 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
+      - &verify-actions-node
+        name: Verify Actions Node.js security version
+        run: |
+          worker_executable=$(readlink -f "/proc/$PPID/exe")
+          actions_node="$(dirname "$worker_executable")/../externals/node24/bin/node"
+          "$actions_node" -e '
+            console.log(`Actions runtime: ${process.version}`);
+            const [major, minor, patch] = process.versions.node.split(".").map(Number);
+            if (major !== 24 || minor < 22 || (minor === 22 && patch < 1)) process.exit(1);
+          '
+
       - uses: actions/checkout@v5
 
       - name: Set up Node.js
@@ -65,6 +76,7 @@ jobs:
       run:
         working-directory: ts
     steps:
+      - *verify-actions-node
       - uses: actions/checkout@v5
 
       - name: Set up Node.js
@@ -93,6 +105,7 @@ jobs:
       run:
         working-directory: python
     steps:
+      - *verify-actions-node
       - uses: actions/checkout@v5
 
       - name: Set up Python
@@ -122,6 +135,7 @@ jobs:
     permissions:
       contents: write
     steps:
+      - *verify-actions-node
       - uses: actions/checkout@v5
 
       - name: Create Release
