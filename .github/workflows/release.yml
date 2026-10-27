@@ -15,6 +15,7 @@ jobs:
     steps:
       - &verify-actions-node
         name: Verify Actions Node.js security version
+        working-directory: ${{ runner.temp }}
         run: |
           worker_executable=$(readlink -f "/proc/$PPID/exe")
           actions_node="$(dirname "$worker_executable")/../externals/node24/bin/node"
