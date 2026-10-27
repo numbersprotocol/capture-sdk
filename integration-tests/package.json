@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Integration tests for published Capture SDK packages",
   "type": "module",
+  "engines": {
+    "node": "^22.23.4 || ^24.22.1 || ^26.12.1"
+  },
   "scripts": {
     "test:ts": "npx tsx test-published-sdk.ts",
     "test:py": "python test_published_sdk.py"

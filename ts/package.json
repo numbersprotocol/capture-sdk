@@ -27,6 +27,7 @@
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
     "test": "vitest run",
+    "test:runtime": "node --test test/node-runtime.mjs",
     "test:watch": "vitest",
     "prepublishOnly": "npm run build"
   },
@@ -59,7 +60,7 @@
     "vitest": "^4.0.18"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": "^22.23.4 || ^24.22.1 || ^26.12.1"
   },
   "publishConfig": {
     "access": "public"

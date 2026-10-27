@@ -135,7 +135,8 @@ try {
 
 ## Requirements
 
-- Node.js 18+ or modern browser with Web Crypto API
+- Node.js 22.23.4+ (22.x), 24.22.1+ (24.x), or 26.12.1+ (26.x); or a modern browser with Web Crypto API
+- Development and publishing use Node.js 24.22.1 (see the repository's `.nvmrc`).
 
 ## License
 

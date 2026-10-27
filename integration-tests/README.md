@@ -2,6 +2,8 @@
 
 Integration tests for the published Capture SDK packages to verify they work correctly after release.
 
+Node.js requirements: 22.23.4+ (22.x), 24.22.1+ (24.x), or 26.12.1+ (26.x). Development defaults to 24.22.1; see the repository's `.nvmrc`.
+
 ## Prerequisites
 
 You need a valid Numbers Protocol Capture API token. Get one from:
