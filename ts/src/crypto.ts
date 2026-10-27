@@ -3,7 +3,7 @@ import type { IntegrityProof, AssetSignature } from './types.js'
 
 /**
  * Computes SHA-256 hash of data using Web Crypto API.
- * Works in both Node.js 18+ and modern browsers.
+ * Works in supported Node.js versions and modern browsers.
  */
 export async function sha256(data: Uint8Array): Promise<string> {
   // Create a new ArrayBuffer copy to avoid SharedArrayBuffer issues

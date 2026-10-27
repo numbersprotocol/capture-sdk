@@ -64,7 +64,8 @@ tree = capture.get_asset_tree(asset.nid)
 
 ## Requirements
 
-- **TypeScript**: Node.js 18+ or modern browser
+- **TypeScript**: Node.js 22.23.4+ (22.x), 24.22.1+ (24.x), or 26.12.1+ (26.x); or a modern browser
+- **Development and publishing**: Node.js 24.22.1 (see `.nvmrc`)
 - **Python**: Python 3.14+
 - **API Token**: Get from [Capture Dashboard](https://docs.captureapp.xyz/)
 
